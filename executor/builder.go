@@ -1633,11 +1633,13 @@ func (b *executorBuilder) buildIndexJoin(v *plannercore.PhysicalIndexJoin) Execu
 		outerKeyCols[i] = v.OuterJoinKeys[i].Index
 	}
 	e.outerCtx.keyCols = outerKeyCols
+	e.outerCtx.joinKeys = v.OuterJoinKeys
 	innerKeyCols := make([]int, len(v.InnerJoinKeys))
 	for i := 0; i < len(v.InnerJoinKeys); i++ {
 		innerKeyCols[i] = v.InnerJoinKeys[i].Index
 	}
 	e.innerCtx.keyCols = innerKeyCols
+	e.innerCtx.joinKeys = v.InnerJoinKeys
 	e.joinResult = e.newFirstChunk()
 	metrics.ExecutorCounter.WithLabelValues("IndexLookUpJoin").Inc()
 

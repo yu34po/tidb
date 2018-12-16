@@ -2,6 +2,7 @@ module github.com/pingcap/tidb
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
 	github.com/blacktear23/go-proxyprotocol v0.0.0-20171102103907-62e368e1c470
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
@@ -9,11 +10,13 @@ require (
 	github.com/cznic/mathutil v0.0.0-20181021201202-eba54fb065b7
 	github.com/cznic/sortutil v0.0.0-20150617083342-4c7342852e65
 	github.com/etcd-io/gofail v0.0.0-20180808172546-51ce9a71510a
+	github.com/go-ole/go-ole v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v0.0.0-20170715192408-3955978caca4
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/protobuf v1.2.0
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
+	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/mux v1.6.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -39,6 +42,8 @@ require (
 	github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446 // indirect
 	github.com/shirou/gopsutil v2.18.10+incompatible
+	github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371 // indirect
+	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd // indirect
 	github.com/sirupsen/logrus v1.2.0
 	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
 	github.com/tiancaiamao/appdash v0.0.0-20181126055449-889f96f722a2
