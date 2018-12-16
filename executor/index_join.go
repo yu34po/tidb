@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"github.com/pingcap/errors"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/sessionctx"
@@ -66,6 +67,7 @@ type indexJoinTask struct {
 	outerResult *chunk.Chunk
 	outerMatch  []bool
 
+	encodedLookUpKeys *chunk.Chunk
 	lookupMap     *mvmap.MVMap
 	matchKeyMap   *mvmap.MVMap
 	matchedOuters []chunk.Row
@@ -274,6 +276,10 @@ func (iw *innerHashWorker) handleTask(ctx context.Context, task *indexJoinTask, 
 		return errors.Trace(err)
 	}
 	dLookUpKeys = iw.sortAndDedupDatumLookUpKeys(dLookUpKeys)
+	//err = iw.buildHashTable(task)
+	//if err != nil {
+	//	return errors.Trace(err)
+	//}
 	err = iw.fetchAndJoin(ctx, task, dLookUpKeys, joinResult)
 	if err != nil {
 		return errors.Trace(err)
@@ -313,7 +319,7 @@ func compareRow(sc *stmtctx.StatementContext, left, right []types.Datum) int {
 	return 0
 }
 
-func (ow *outerWorker) buildHashTable(task *indexJoinTask) error {
+func (iw *innerWorker) buildHashTable(task *indexJoinTask) error {
 	keyBuf := make([]byte, 0, 64)
 	valBuf := make([]byte, 8)
 	for i := 0; i < task.outerResult.NumRows(); i++ {
@@ -321,20 +327,21 @@ func (ow *outerWorker) buildHashTable(task *indexJoinTask) error {
 			continue
 		}
 		outerRow := task.outerResult.GetRow(i)
-		if ow.hasNullInJoinKey(outerRow) { //skip outer row?
+		if iw.hasNullInJoinKey(outerRow) { //skip outer row?
 			continue
 		}
 
-		keyBuf = keyBuf[:0]
-		for _, keyCol := range ow.keyCols {
-			d := outerRow.GetDatum(keyCol, ow.rowTypes[keyCol])
-			var err error
-			keyBuf, err = codec.EncodeKey(ow.ctx.GetSessionVars().StmtCtx, keyBuf, d)
-			if err != nil {
-				return errors.Trace(err)
-			}
-		}
-		log.Infof("keyBuf %v", keyBuf)
+		//keyBuf = keyBuf[:0]
+		//for _, keyCol := range ow.keyCols {
+		//	d := outerRow.GetDatum(keyCol, ow.rowTypes[keyCol])
+		//	var err error
+		//	keyBuf, err = codec.EncodeKey(ow.ctx.GetSessionVars().StmtCtx, keyBuf, d)
+		//	if err != nil {
+		//		return errors.Trace(err)
+		//	}
+		//}
+		keyBuf = task.encodedLookUpKeys.GetRow(i).GetBytes(0)
+		log.Infof("outer Key %v", keyBuf)
 
 		rowPtr := chunk.RowPtr{ChkIdx: uint32(0), RowIdx: uint32(i)}
 		*(*chunk.RowPtr)(unsafe.Pointer(&valBuf[0])) = rowPtr
@@ -354,7 +361,7 @@ func (iw *innerHashWorker) joinMatchInnerRow2Chunk(innerRow chunk.Row, task *ind
 			return false, joinResult
 		}
 	}
-	log.Infof("keyBuf %v", keyBuf)
+	log.Infof("inner Key %v", keyBuf)
 	iw.innerPtrBytes = task.lookupMap.Get(keyBuf, iw.innerPtrBytes[:0])
 
 	if len(iw.innerPtrBytes) == 0 {
@@ -407,8 +414,8 @@ func (iw *innerHashWorker) join2Chunk(innerChk *chunk.Chunk, joinResult *hashWor
 	return true, joinResult
 
 }
-func (ow *outerWorker) hasNullInJoinKey(row chunk.Row) bool {
-	for _, ordinal := range ow.keyCols {
+func (iw *innerWorker) hasNullInJoinKey(row chunk.Row) bool {
+	for _, ordinal := range iw.outerCtx.keyCols {
 		if row.IsNull(ordinal) {
 			return true
 		}
@@ -418,6 +425,8 @@ func (ow *outerWorker) hasNullInJoinKey(row chunk.Row) bool {
 
 func (iw *innerWorker) constructDatumLookupKeys(task *indexJoinTask) ([][]types.Datum, error) {
 	dLookUpKeys := make([][]types.Datum, 0, task.outerResult.NumRows())
+	keyBuf := make([]byte, 0, 64)
+	valBuf := make([]byte, 8)
 	for i := 0; i < task.outerResult.NumRows(); i++ {
 		dLookUpKey, err := iw.constructDatumLookupKey(task, i)
 		if err != nil {
@@ -425,13 +434,31 @@ func (iw *innerWorker) constructDatumLookupKeys(task *indexJoinTask) ([][]types.
 		}
 		if dLookUpKey == nil {
 			// Append null to make looUpKeys the same length as outer Result.
+			task.encodedLookUpKeys.AppendNull(0)
 			continue
 		}
+		keyBuf = keyBuf[:0]
+		keyBuf, err = codec.EncodeKey(iw.ctx.GetSessionVars().StmtCtx, keyBuf, dLookUpKey...)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		log.Infof("outer Key %v", keyBuf)
 		// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
+		task.encodedLookUpKeys.AppendBytes(0, keyBuf)
 		dLookUpKeys = append(dLookUpKeys, dLookUpKey)
+
+		outerRow := task.outerResult.GetRow(i)
+
+		if iw.hasNullInJoinKey(outerRow) { //skip outer row?
+			continue
+		}
+		rowPtr := chunk.RowPtr{ChkIdx: uint32(0), RowIdx: uint32(i)}
+		*(*chunk.RowPtr)(unsafe.Pointer(&valBuf[0])) = rowPtr
+		task.lookupMap.Put(keyBuf, valBuf)
 	}
 
 	//task.memTracker.Consume(task.encodedLookUpKeys.MemoryUsage())
+	task.memTracker.Consume(task.encodedLookUpKeys.MemoryUsage())
 	return dLookUpKeys, nil
 }
 
@@ -616,6 +643,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 	task := &indexJoinTask{
 		doneCh:      make(chan error, 1),
 		outerResult: ow.executor.newFirstChunk(),
+		encodedLookUpKeys: chunk.NewChunkWithCapacity([]*types.FieldType{types.NewFieldType(mysql.TypeBlob)}, ow.ctx.GetSessionVars().MaxChunkSize),
 		lookupMap:   mvmap.NewMVMap(),
 		matchKeyMap: mvmap.NewMVMap(),
 	}
@@ -630,6 +658,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 		if err != nil {
 			return task, errors.Trace(err)
 		}
+		log.Infof("outer row num %v", ow.executorChk.NumRows())
 		if ow.executorChk.NumRows() == 0 {
 			break
 		}
@@ -651,10 +680,6 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 			return task, errors.Trace(err)
 		}
 		task.memTracker.Consume(int64(cap(task.outerMatch)))
-	}
-	err := ow.buildHashTable(task)
-	if err != nil {
-		return task, errors.Trace(err)
 	}
 	return task, nil
 }

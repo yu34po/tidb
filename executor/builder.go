@@ -1652,27 +1652,6 @@ func (b *executorBuilder) buildIndexJoin(v *plannercore.PhysicalIndexJoin) Execu
 		IndexJoin: *e,
 	}
 	return ex
-
-	b.ctx.GetSessionVars().PlanID++
-	id := b.ctx.GetSessionVars().PlanID
-	projFromID := fmt.Sprintf("%s_%d", plannercore.TypeProj, id)
-
-	fullExprs := expression.Column2Exprs(v.Schema().Columns)
-	for i, expr := range fullExprs {
-		fullExprs[i] = expr.ResolveIndices(v.Schema())
-	}
-	lenExpr := len(fullExprs)
-	lenInner := len(innerPlan.Schema().Columns)
-	newExpr := make([]expression.Expression, 0, lenExpr)
-	newExpr = fullExprs[lenInner:]
-	newExpr = append(newExpr, fullExprs[:lenInner]...)
-	fullExprs = newExpr
-
-	return &ProjectionExec{
-		baseExecutor:  newBaseExecutor(b.ctx, v.Schema(), projFromID, ex),
-		evaluatorSuit: expression.NewEvaluatorSuite(fullExprs, false),
-	}
-	//return ex
 }
 
 // containsLimit tests if the execs contains Limit because we do not know whether `Limit` has consumed all of its' source,

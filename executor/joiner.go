@@ -78,6 +78,7 @@ type joiner interface {
 	//   7. 'InnerJoin': ignores the unmatched outer row.
 	onMissMatch(outer chunk.Row, chk *chunk.Chunk)
 }
+
 func newJoinerEx(ctx sessionctx.Context, joinType plannercore.JoinType,
 	outerIsRight bool, defaultInner []types.Datum, filter []expression.Expression,
 	lhsColTypes, rhsColTypes []*types.FieldType) joiner {
@@ -140,7 +141,6 @@ func newJoiner(ctx sessionctx.Context, joinType plannercore.JoinType,
 	if joinType == plannercore.LeftOuterJoin || joinType == plannercore.RightOuterJoin {
 		innerColTypes := lhsColTypes
 		if !outerIsRight {
-		//if outerIsRight {
 			innerColTypes = rhsColTypes
 		}
 		base.initDefaultInner(innerColTypes, defaultInner)
@@ -289,7 +289,6 @@ func (j *antiSemiJoiner) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
 type leftOuterSemiJoiner struct {
 	baseJoiner
 }
-
 
 // tryToMatch implements joiner interface.
 func (j *leftOuterSemiJoiner) tryToMatch(outer chunk.Row, inners chunk.Iterator, chk *chunk.Chunk) (matched bool, err error) {
@@ -441,10 +440,8 @@ func (j *leftOuterJoiner) tryToMatch(outer chunk.Row, inners chunk.Iterator, chk
 }
 
 func (j *leftOuterJoiner) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
-	//chk.AppendPartialRow(0, outer)
-	//chk.AppendPartialRow(outer.Len(), j.defaultInner)
-	chk.AppendPartialRow(0, j.defaultInner)
-	chk.AppendPartialRow(j.defaultInner.Len(), outer)
+	chk.AppendPartialRow(0, outer)
+	chk.AppendPartialRow(outer.Len(), j.defaultInner)
 }
 
 type rightOuterJoiner struct {
@@ -470,7 +467,7 @@ func (j *rightOuterJoinerEx) tryToMatch(outer chunk.Row, inners chunk.Iterator, 
 	numToAppend := j.maxChunkSize - chk.NumRows()
 	for ; inners.Current() != inners.End() && numToAppend > 0; numToAppend-- {
 		//j.makeJoinRowToChunk(chkForJoin, inners.Current(), outer)
-		j.makeJoinRowToChunk(chkForJoin, outer,inners.Current())
+		j.makeJoinRowToChunk(chkForJoin, outer, inners.Current())
 
 		inners.Next()
 	}
@@ -560,7 +557,7 @@ func (j *innerJoinerEx) tryToMatch(outer chunk.Row, inners chunk.Iterator, chk *
 
 }
 
-func (j *innerJoiner) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
+func (j *innerJoinerEx) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
 }
 
 // tryToMatch implements joiner interface.
@@ -576,9 +573,9 @@ func (j *innerJoiner) tryToMatch(outer chunk.Row, inners chunk.Iterator, chk *ch
 	inner, numToAppend := inners.Current(), j.maxChunkSize-chk.NumRows()
 	for ; inner != inners.End() && numToAppend > 0; inner, numToAppend = inners.Next(), numToAppend-1 {
 		if j.outerIsRight {
-			j.makeJoinRowToChunk(chkForJoin, outer, inner)
-		} else {
 			j.makeJoinRowToChunk(chkForJoin, inner, outer)
+		} else {
+			j.makeJoinRowToChunk(chkForJoin, outer, inner)
 		}
 	}
 	if len(j.conditions) == 0 {
@@ -594,5 +591,5 @@ func (j *innerJoiner) tryToMatch(outer chunk.Row, inners chunk.Iterator, chk *ch
 
 }
 
-func (j *innerJoinerEx) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
+func (j *innerJoiner) onMissMatch(outer chunk.Row, chk *chunk.Chunk) {
 }
