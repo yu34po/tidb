@@ -1623,7 +1623,7 @@ func (b *executorBuilder) buildIndexJoin(v *plannercore.PhysicalIndexJoin) Execu
 			readerBuilder: &dataReaderBuilder{innerPlan, b},
 			rowTypes:      innerTypes,
 		},
-		workerWg: new(sync.WaitGroup),
+		workerWg:      new(sync.WaitGroup),
 		joiner:        newJoinerEx(b.ctx, v.JoinType, v.OuterIndex == 1, defaultValues, v.OtherConditions, leftTypes, rightTypes),
 		indexRanges:   v.Ranges,
 		keyOff2IdxOff: v.KeyOff2IdxOff,

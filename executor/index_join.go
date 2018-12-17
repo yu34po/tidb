@@ -68,9 +68,9 @@ type indexJoinTask struct {
 	outerMatch  []bool
 
 	encodedLookUpKeys *chunk.Chunk
-	lookupMap     *mvmap.MVMap
-	matchKeyMap   *mvmap.MVMap
-	matchedOuters []chunk.Row
+	lookupMap         *mvmap.MVMap
+	matchKeyMap       *mvmap.MVMap
+	matchedOuters     []chunk.Row
 
 	doneCh   chan error
 	cursor   int
@@ -641,11 +641,11 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 	ow.executor.newFirstChunk()
 
 	task := &indexJoinTask{
-		doneCh:      make(chan error, 1),
-		outerResult: ow.executor.newFirstChunk(),
+		doneCh:            make(chan error, 1),
+		outerResult:       ow.executor.newFirstChunk(),
 		encodedLookUpKeys: chunk.NewChunkWithCapacity([]*types.FieldType{types.NewFieldType(mysql.TypeBlob)}, ow.ctx.GetSessionVars().MaxChunkSize),
-		lookupMap:   mvmap.NewMVMap(),
-		matchKeyMap: mvmap.NewMVMap(),
+		lookupMap:         mvmap.NewMVMap(),
+		matchKeyMap:       mvmap.NewMVMap(),
 	}
 	task.memTracker = memory.NewTracker(fmt.Sprintf("lookup join task %p", task), -1)
 	task.memTracker.AttachTo(ow.parentMemTracker)
