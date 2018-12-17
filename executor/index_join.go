@@ -74,6 +74,7 @@ type indexJoinTask struct {
 	outerResult *chunk.Chunk
 	outerMatch  []bool
 
+
 	outIter       *chunk.Iterator4Chunk //在inner handle task的时候进行初始化
 	outerRow      chunk.Row             //同上
 
@@ -81,6 +82,7 @@ type indexJoinTask struct {
 	lookupMap     *mvmap.MVMap
 	matchKeyMap   *mvmap.MVMap
 	matchedOuters []chunk.Row
+
 
 	doneCh   chan error	//这个的存在没有什么必要，没有人读，只有人写
 	cursor   int
@@ -962,6 +964,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 	ow.executor.newFirstChunk()
 
 	task := &indexJoinTask{
+
 		doneCh:      make(chan error, 1),
 		outerResult: ow.executor.newFirstChunk(),
 		encodedLookUpKeys: chunk.NewChunkWithCapacity([]*types.FieldType{types.NewFieldType(mysql.TypeBlob)}, ow.ctx.GetSessionVars().MaxChunkSize),
