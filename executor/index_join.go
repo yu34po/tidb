@@ -318,23 +318,28 @@ func (iw *innerHashWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 		select {
 		case <-iw.closeCh:
 			return
-		case task, ok = <-iw.taskCh:
-			if !ok {
-				return
-			}
 		case <-ctx.Done():
 			return
+		case task, ok = <-iw.taskCh:
+		}
+		if !ok {
+			break
 		}
 		if task.buildError != nil {
 			joinResult.err = errors.Trace(task.buildError)
-			iw.joinResultCh <- joinResult
-			return
-		} else {
-			err := iw.handleTask(ctx, task, joinResult)
-			if err != nil {
-				return
-			}
+			break
 		}
+		err := iw.handleTask(ctx, task, joinResult)
+		if err != nil {
+			joinResult.err = err
+			break
+
+		}
+	}
+	if joinResult == nil {
+		return
+	} else if joinResult.err != nil || (joinResult.chk != nil && joinResult.chk.NumRows() > 0) {
+		iw.joinResultCh <- joinResult
 	}
 }
 
@@ -787,12 +792,14 @@ func (iw *innerHashWorker) fetchAndJoin(ctx context.Context, task *indexJoinTask
 			misMatchedRow := task.outerResult.GetRow(int(ptr.RowIdx))
 			iw.joiner.onMissMatch(misMatchedRow, joinResult.chk)
 		}
-	}
-
-	if joinResult == nil {
-		return nil
-	} else if joinResult.err != nil || (joinResult.chk != nil && joinResult.chk.NumRows() > 0) {
-		iw.joinResultCh <- joinResult
+		if joinResult.chk.NumRows() == iw.maxChunkSize {
+			ok := true
+			iw.joinResultCh <- joinResult
+			ok, joinResult = iw.getNewJoinResult()
+			if !ok {
+				return errors.New("getNewJoinResult failed")
+			}
+		}
 	}
 	if !ok {
 		return errors.New("join2Chunk failed")
