@@ -84,7 +84,7 @@ type indexJoinTask struct {
 
 	memTracker *memory.Tracker // track memory usage.
 
-	buildError error
+	error error
 	//only merge join use
 	joinResultCh chan *indexJoinWorkerResult
 }
@@ -102,7 +102,7 @@ type IndexHashJoin struct {
 
 type IndexMergeJoin struct {
 	IndexJoin
-	curTaskJoinResultCh chan *indexJoinWorkerResult //only for next() save current processing task
+	curTask *indexJoinTask //current processing task
 }
 type outerWorker struct {
 	outerCtx
@@ -163,8 +163,7 @@ type innerMergeWorker struct {
 type innerHashWorker struct {
 	innerWorker
 	innerPtrBytes [][]byte
-	//	joinChkResourceCh []chan *chunk.Chunk
-	joinResultCh chan *indexJoinWorkerResult
+	joinResultCh  chan *indexJoinWorkerResult
 }
 
 func (e *IndexMergeJoin) Open(ctx context.Context) error {
@@ -284,24 +283,25 @@ func (iw *innerMergeWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 			return
 		}
 
-		if task.buildError != nil {
-			joinResult.err = errors.Trace(task.buildError)
-		} else {
-			err := iw.handleTask(ctx, task, joinResult)
-			if err != nil {
-				joinResult.err = errors.Trace(err)
-			}
+		if task.error != nil {
+			joinResult.err = errors.Trace(task.error)
+			break
 		}
 
+		err := iw.handleTask(ctx, task, joinResult)
 		task.memTracker.Detach()
 
-		if joinResult.err != nil {
-			task.joinResultCh <- joinResult
-			close(task.joinResultCh)
-			return
-		} else {
-			close(task.joinResultCh)
+		if err != nil {
+			joinResult.err = errors.Trace(err)
+			break
 		}
+
+		close(task.joinResultCh)
+	}
+
+	if joinResult.err != nil {
+		task.joinResultCh <- joinResult
+		close(task.joinResultCh)
 	}
 }
 
@@ -322,8 +322,8 @@ func (iw *innerHashWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 		if !ok {
 			break
 		}
-		if task.buildError != nil {
-			joinResult.err = errors.Trace(task.buildError)
+		if task.error != nil {
+			joinResult.err = errors.Trace(task.error)
 			task.memTracker.Detach()
 			break
 		}
@@ -894,7 +894,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 	for task.outerResult.NumRows() < ow.batchSize {
 		err := ow.executor.Next(ctx, ow.executorChk)
 		if err != nil {
-			task.buildError = err
+			task.error = err
 			return task, errors.Trace(err)
 		}
 		if ow.executorChk.NumRows() == 0 {
@@ -915,7 +915,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*indexJoinTask, error) {
 		var err error
 		task.outerMatch, err = expression.VectorizedFilter(ow.ctx, ow.filter, chunk.NewIterator4Chunk(task.outerResult), outerMatch)
 		if err != nil {
-			task.buildError = err
+			task.error = err
 			return task, errors.Trace(err)
 		}
 		task.memTracker.Consume(int64(cap(task.outerMatch)))
@@ -960,82 +960,43 @@ func (e *IndexHashJoin) Next(ctx context.Context, chk *chunk.Chunk) error {
 
 func (e *IndexMergeJoin) Next(ctx context.Context, chk *chunk.Chunk) error {
 	chk.Reset()
-	joinResult, err := e.getJoinResult(ctx)
 
-	if err != nil {
-		return errors.Trace(err)
+	if e.curTask == nil {
+		e.curTask = e.getNextTask(ctx)
 	}
 
-	if joinResult != nil {
-		if joinResult.err != nil {
-			return errors.Trace(joinResult.err)
-		}
-
-		chk.SwapColumns(joinResult.chk)
-		joinResult.src <- joinResult.chk
+	if e.curTask == nil { //index merge join all complete
+		return nil
 	}
+
+	joinResult, ok := <-e.curTask.joinResultCh
+
+	if !ok { //curTask process complete,we need getNextTask,so set curTask = nil
+		e.curTask = nil
+		return nil
+	}
+
+	if joinResult.err != nil {
+		return errors.Trace(joinResult.err)
+	}
+
+	chk.SwapColumns(joinResult.chk)
+	joinResult.src <- joinResult.chk
+
 	return nil
 }
 
-func (e *IndexMergeJoin) getJoinResult(ctx context.Context) (*indexJoinWorkerResult, error) {
-	for {
-		joinResultCh, err := e.getJoinResultCh(ctx)
-
-		if err != nil {
-			return nil, err
-		}
-
-		if joinResultCh != nil {
-			joinResult, ok := <-joinResultCh
-			if ok {
-				return joinResult, nil
-			} else {
-				e.curTaskJoinResultCh = nil //clear e.joinResultCh
-				continue
-			}
-		} else {
-			return nil, nil
-		}
-	}
-}
-
-func (e *IndexMergeJoin) getJoinResultCh(ctx context.Context) (chan *indexJoinWorkerResult, error) {
-	joinResultCh := e.curTaskJoinResultCh
-
-	if joinResultCh != nil {
-		return joinResultCh, nil
-	}
-
-	task := e.getNextTask(ctx)
-
-	if task == nil {
-		return nil, nil
-	}
-
-	if task.buildError != nil {
-		e.curTaskJoinResultCh = nil //clear current processing task join result channel
-		return nil, task.buildError
-	} else {
-		e.curTaskJoinResultCh = task.joinResultCh
-		return e.curTaskJoinResultCh, nil
-	}
-}
-
 func (e *IndexMergeJoin) getNextTask(ctx context.Context) *indexJoinTask {
-	var task *indexJoinTask
-	ok := true
-
 	select {
-	case task, ok = <-e.taskCh:
+	case task, ok := <-e.taskCh:
+		if ok {
+			return task
+		}
 	case <-ctx.Done():
 		return nil
 	}
 
-	if ok {
-		return task
-	} else {
-		return nil
-	}
+	return nil
 }
 
 func (e *IndexHashJoin) Close() error {
@@ -1050,12 +1011,11 @@ func (e *IndexHashJoin) Close() error {
 func (e *IndexMergeJoin) Close() error {
 	e.close()
 
-	if e.curTaskJoinResultCh != nil {
-		for range e.curTaskJoinResultCh {
+	if e.curTask != nil {
+		for range e.curTask.joinResultCh {
 		}
-
-		e.curTaskJoinResultCh = nil
 	}
+
 	return errors.Trace(e.children[0].Close())
 }
 
