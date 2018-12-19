@@ -102,7 +102,6 @@ type IndexHashJoin struct {
 
 type IndexMergeJoin struct {
 	IndexJoin
-	//	curTaskJoinResultCh chan *indexJoinWorkerResult //only for next() save current processing task
 	curTask *indexJoinTask //current processing task
 }
 type outerWorker struct {
