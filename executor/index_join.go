@@ -261,8 +261,14 @@ func (e *IndexJoin) newOuterWorker(taskCh, innerCh chan *indexJoinTask) *outerWo
 }
 func (iw *innerMergeWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 	defer func() {
-		wg.Done()
+		if r := recover(); r != nil {
+			buf := make([]byte, 4096)
+			stackSize := runtime.Stack(buf, false)
+			buf = buf[:stackSize]
+			log.Errorf("innerMergeWorker panic stack is:\n%s", buf)
+		}
 		iw.memTracker.Detach()
+		wg.Done()
 	}()
 
 	var task *indexJoinTask
