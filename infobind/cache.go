@@ -60,10 +60,10 @@ func (h *Handle) Get() *BindCache {
 	}
 }
 
-func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) (error, *BindCache) {
+func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
 	tmp, err := h.Ctx.(sqlexec.SQLExecutor).Execute(context.Background(), sql)
 	if err != nil {
-		return errors.Trace(err), bc
+		return errors.Trace(err)
 	}
 
 	rs := tmp[0]
@@ -74,10 +74,10 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) (error, *BindCache) 
 	for {
 		err = rs.Next(context.TODO(), chk)
 		if err != nil {
-			return errors.Trace(err), bc
+			return errors.Trace(err)
 		}
 		if chk.NumRows() == 0 {
-			return nil, bc
+			return nil
 		}
 		it := chunk.NewIterator4Chunk(chk)
 		for row := it.Begin(); row != it.End(); row = it.Next() {
@@ -98,7 +98,7 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) (error, *BindCache) 
 		chk = chunk.Renew(chk, h.Ctx.GetSessionVars().MaxChunkSize)
 	}
 
-	return nil, bc
+	return nil
 }
 
 func (h *HandleUpdater) Update(fullLoad bool) error {
@@ -113,7 +113,7 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.Format("2006-01-02 15:04:05.000000"))
 	}
 	log.Infof("sql %s", sql)
-	err, bc = h.LoadDiff(sql, bc)
+	err = h.LoadDiff(sql, bc)
 	if err != nil {
 		return errors.Trace(err)
 	}

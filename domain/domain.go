@@ -797,6 +797,7 @@ func (do *Domain) LoadBindInfoLoop(ctx sessionctx.Context, parser *parser.Parser
 	if err != nil {
 		return errors.Trace(err)
 	}
+
 	fullLoad = false
 	duration := 3 * time.Second
 	go func() {

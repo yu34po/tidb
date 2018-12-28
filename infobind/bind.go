@@ -228,7 +228,7 @@ func (b *BindManager) selectionBind(where ast.ExprNode, hindedWhere ast.ExprNode
 }
 
 func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok bool,err error) {
-	if originalNode.TableHints != nil {
+	if hintedNode.TableHints != nil {
 		originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
 	}
 	if originalNode.From != nil {
