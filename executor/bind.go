@@ -19,7 +19,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/infobind"
 	"github.com/pingcap/tidb/util/chunk"
-	"github.com/zhaoxiaojie0415/parser/ast"
+	"github.com/pingcap/parser/ast"
 	"time"
 )
 

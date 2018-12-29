@@ -1,6 +1,6 @@
 package infobind
 
-import "github.com/zhaoxiaojie0415/parser"
+import "github.com/pingcap/parser"
 
 type SessionBind struct {
 	GlobalBindAccessor GlobalBindAccessor

@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser/model"
-	"github.com/zhaoxiaojie0415/parser/mysql"
+	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/owner"
@@ -1080,6 +1080,11 @@ func (ctx *ctxForPartitionExpr) GetSessionBind() *infobind.SessionBind {
 func (ctx *ctxForPartitionExpr) GetSessionManager() util.SessionManager {
 	panic("not support")
 }
+
+func (ctx *ctxForPartitionExpr) GetLocalBindCache() *infobind.BindCache{
+	panic("not support")
+}
+
 
 // RefreshTxnCtx commits old transaction without retry,
 // and creates a new transaction.

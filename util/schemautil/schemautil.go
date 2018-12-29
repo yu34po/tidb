@@ -13,7 +13,7 @@
 
 package schemautil
 
-import "github.com/zhaoxiaojie0415/parser/model"
+import "github.com/pingcap/parser/model"
 
 // FindIndexByName finds index by name.
 func FindIndexByName(idxName string, indices []*model.IndexInfo) *model.IndexInfo {

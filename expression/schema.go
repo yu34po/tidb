@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser/ast"
+	"github.com/pingcap/parser/ast"
 )
 
 // KeyInfo stores the columns of one unique key or primary key.

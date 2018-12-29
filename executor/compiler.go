@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser/ast"
+	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/infobind"
 	"github.com/pingcap/tidb/infoschema"
@@ -27,6 +27,7 @@ import (
 	plannercore "github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/sessionctx"
 	log "github.com/sirupsen/logrus"
+	"go/ast"
 	"strings"
 )
 
@@ -52,8 +53,19 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 		}
 	}
 	if v, ok := node.(*ast.SelectStmt); ok {
-		if bm := infobind.GetBindManager(c.Ctx); bm != nil {
-			bm.MatchHint(v, infoSchema, c.Ctx.GetSessionVars().CurrentDB)
+		sessionBind := c.Ctx.GetSessionBind()
+		bindData := sessionBind.GetBind(v.Text(), c.Ctx.GetSessionVars().CurrentDB)
+		needGlobalMath := true
+		if bindData != nil {
+			if infobind.MatchHit(v , bindData.Ast) {
+				needGlobalMath = false
+			}
+		}
+
+		if needGlobalMath{
+			if bm := infobind.GetBindManager(c.Ctx); bm != nil {
+				bm.MatchHint(v, infoSchema, c.Ctx.GetSessionVars().CurrentDB)
+			}
 		}
 	}
 

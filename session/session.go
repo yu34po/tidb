@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/pingcap/tidb/terror"
 	"net"
 	"strconv"
 	"strings"
@@ -32,13 +33,13 @@ import (
 	"github.com/ngaut/pools"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser"
-	"github.com/zhaoxiaojie0415/parser/ast"
-	"github.com/zhaoxiaojie0415/parser/auth"
-	"github.com/zhaoxiaojie0415/parser/charset"
-	"github.com/zhaoxiaojie0415/parser/model"
-	"github.com/zhaoxiaojie0415/parser/mysql"
-	"github.com/zhaoxiaojie0415/parser/terror"
+	"github.com/pingcap/parser"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/auth"
+	"github.com/pingcap/parser/charset"
+	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
+	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/executor"
 	"github.com/pingcap/tidb/infobind"
@@ -259,6 +260,11 @@ func (s *session) SetSessionManager(sm util.SessionManager) {
 func (s *session) GetSessionManager() util.SessionManager {
 	return s.sessionManager
 }
+
+func (s *session) GetLocalBindCache() *infobind.BindCache {
+	return s.localBindCache
+}
+
 
 func (s *session) StoreQueryFeedback(feedback interface{}) {
 	if s.statsCollector != nil {

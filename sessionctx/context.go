@@ -57,6 +57,8 @@ type Context interface {
 
 	GetSessionManager() util.SessionManager
 
+	GetLocalBindCache() *infobind.BindCache
+
 	// RefreshTxnCtx commits old transaction without retry,
 	// and creates a new transaction.
 	// now just for load data and batch insert.

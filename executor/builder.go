@@ -46,9 +46,9 @@ import (
 	"github.com/pingcap/tidb/util/ranger"
 	"github.com/pingcap/tidb/util/timeutil"
 	"github.com/pingcap/tipb/go-tipb"
-	"github.com/zhaoxiaojie0415/parser/ast"
-	"github.com/zhaoxiaojie0415/parser/model"
-	"github.com/zhaoxiaojie0415/parser/mysql"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 )
 
 // executorBuilder builds an Executor from a Plan.

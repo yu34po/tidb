@@ -48,6 +48,7 @@ type Context struct {
 	cancel      context.CancelFunc
 	sm          util.SessionManager
 	pcache      *kvcache.SimpleLRUCache
+	localCache *infobind.BindCache
 }
 
 type wrapTxn struct {
@@ -185,6 +186,9 @@ func (c *Context) GetSessionManager() util.SessionManager {
 	return c.sm
 }
 
+func (c *Context) GetLocalBindCache() *infobind.BindCache {
+	return c.localCache
+}
 // SetSessionManager set the session manager.
 func (c *Context) SetSessionManager(sm util.SessionManager) {
 	c.sm = sm

@@ -24,7 +24,7 @@ import (
 	"github.com/pingcap/goleveldb/leveldb/iterator"
 	"github.com/pingcap/goleveldb/leveldb/memdb"
 	"github.com/pingcap/goleveldb/leveldb/util"
-	"github.com/zhaoxiaojie0415/parser/terror"
+	"github.com/pingcap/parser/terror"
 )
 
 // memDbBuffer implements the MemBuffer interface.

@@ -14,7 +14,7 @@
 package structure
 
 import (
-	"github.com/zhaoxiaojie0415/parser/terror"
+	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/kv"
 )
 

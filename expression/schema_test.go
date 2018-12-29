@@ -17,7 +17,7 @@ import (
 	"fmt"
 
 	. "github.com/pingcap/check"
-	"github.com/zhaoxiaojie0415/parser/model"
+	"github.com/pingcap/parser/model"
 )
 
 // generateKeys4Schema will generate keys for a given schema. Used only in this file.

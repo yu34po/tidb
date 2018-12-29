@@ -22,7 +22,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser/mysql"
+	"github.com/pingcap/parser/mysql"
 	log "github.com/sirupsen/logrus"
 )
 

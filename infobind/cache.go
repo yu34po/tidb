@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser"
-	"github.com/zhaoxiaojie0415/parser/ast"
-	"github.com/zhaoxiaojie0415/parser/terror"
+	"github.com/pingcap/parser"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/sqlexec"

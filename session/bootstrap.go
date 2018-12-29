@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
-	"github.com/zhaoxiaojie0415/parser/auth"
-	"github.com/zhaoxiaojie0415/parser/mysql"
-	"github.com/zhaoxiaojie0415/parser/terror"
+	"github.com/pingcap/parser/auth"
+	"github.com/pingcap/parser/mysql"
+	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/sessionctx/variable"
