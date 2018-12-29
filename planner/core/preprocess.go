@@ -16,6 +16,7 @@ package core
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/pingcap/errors"
@@ -359,9 +360,37 @@ func (p *preprocessor) checkNonUniqTableAlias(stmt *ast.Join) {
 	p.parentIsJoin = true
 }
 
+func trimBank(str string) string {
+	if str == "" {
+		return ""
+	}
+	str = strings.Replace(str, "    ", " ", -1)
+	reg := regexp.MustCompile("\\s{2,}")
+	return reg.ReplaceAllString(str, " ")
+}
+
+func trimHint(str string) string {
+	reg := regexp.MustCompile("use index \\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("force index \\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("\\/\\*.*\\*\\/")
+	str = reg.ReplaceAllString(str, "")
+	return str
+}
+
 func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt) {
 	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
 	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
+
+	originalSql := trimBank(originSelectStmt.Text())
+	hintedSql := trimBank(hintedSelectStmt.Text())
+	hintedSql = trimHint(hintedSql)
+	hintedSql = trimBank(hintedSql)
+	if originalSql == hintedSql {
+		p.err = errors.New("bind sql not equal")
+		return
+	}
 
 	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
 
