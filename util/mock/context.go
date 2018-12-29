@@ -18,8 +18,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/pingcap/tidb/infobind"
-
-	//	"github.com/pingcap/tidb/infobind"
 	"sync"
 	"time"
 
@@ -44,13 +42,13 @@ type Context struct {
 	txn         wrapTxn    // mock global variable
 	Store       kv.Storage // mock global variable
 	sessionVars *variable.SessionVars
-//	sessionBind *infobind.SessionBind
-	mux         sync.Mutex // fix data race in ddl test.
-	ctx         context.Context
-	cancel      context.CancelFunc
-	sm          util.SessionManager
-	pcache      *kvcache.SimpleLRUCache
-//	localCache  *infobind.BindCache
+	//	sessionBind *infobind.SessionBind
+	mux    sync.Mutex // fix data race in ddl test.
+	ctx    context.Context
+	cancel context.CancelFunc
+	sm     util.SessionManager
+	pcache *kvcache.SimpleLRUCache
+	//	localCache  *infobind.BindCache
 }
 
 type wrapTxn struct {
@@ -96,6 +94,7 @@ func (c *Context) GetSessionVars() *variable.SessionVars {
 	return c.sessionBind
 }
 */
+
 // Txn implements sessionctx.Context Txn interface.
 func (c *Context) Txn(bool) kv.Transaction {
 	return &c.txn
@@ -233,9 +232,9 @@ func NewContext() *Context {
 	sctx := &Context{
 		values:      make(map[fmt.Stringer]interface{}),
 		sessionVars: variable.NewSessionVars(),
-		sessionBind: infobind.NewSessionBind(),
-		ctx:         ctx,
-		cancel:      cancel,
+		//sessionBind: infobind.NewSessionBind(),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	sctx.sessionVars.MaxChunkSize = 2
 	sctx.sessionVars.StmtCtx.TimeZone = time.UTC

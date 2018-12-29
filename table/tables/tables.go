@@ -22,7 +22,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/pingcap/tidb/infobind"
-
 	"math"
 	"strings"
 	"time"

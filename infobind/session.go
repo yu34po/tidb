@@ -1,7 +1,5 @@
 package infobind
 
-import "github.com/pingcap/parser"
-
 type SessionBind struct {
 	GlobalBindAccessor GlobalBindAccessor
 	bindCache *BindCache
@@ -12,8 +10,8 @@ func NewSessionBind() *SessionBind {
 }
 
 func (s *SessionBind) SetBind(originSql string , newBindData *BindData){
-	hash := parser.Digest(originSql)
-
+	//hash := parser.Digest(originSql)
+	hash := ""
 	oldBindDataArr,ok := s.bindCache.Cache[hash]
 	var newBindDataArr = make([] *BindData , 0)
 	if ok {
@@ -31,7 +29,8 @@ func (s *SessionBind) SetBind(originSql string , newBindData *BindData){
 }
 
 func (s *SessionBind) RemoveBind(originSql string, defaultDb string) bool {
-	hash := parser.Digest(originSql)
+	//hash := parser.Digest(originSql)
+	hash := ""
 
 	oldBindDataArr,ok := s.bindCache.Cache[hash]
 	var newBindDataArr = make([] *BindData , 0)
@@ -56,7 +55,8 @@ func (s *SessionBind) RemoveBind(originSql string, defaultDb string) bool {
 }
 
 func (s *SessionBind) GetBind(originSql string, defaultDb string) *BindData {
-	hash := parser.Digest(originSql)
+	//hash := parser.Digest(originSql)
+	hash := ""
 
 	oldBindDataArr,ok := s.bindCache.Cache[hash]
 	if ok {
