@@ -283,9 +283,9 @@ func (b *PlanBuilder) buildDropBind(v *ast.DropBindingStmt) (Plan, error) {
 	p := &DropBindPlan{}
 
 	p.OriginSql = v.OriginSel.Text()
-	p.IsGlobal = v.IsGlobal
+	p.IsGlobal = v.GlobalScope
 
-	p.DefaultDb = b.ctx.GetSessionVars().CurrentDB	//todo  这个地方也得注意一下，需不需要填写？ 需要遍历一把ast
+	p.DefaultDb = b.ctx.GetSessionVars().CurrentDB //todo  这个地方也得注意一下，需不需要填写？ 需要遍历一把ast
 
 	return p, nil
 }
@@ -295,59 +295,12 @@ func (b *PlanBuilder) buildCreateBind(v *ast.CreateBindingStmt) (Plan, error) {
 
 	p.OriginSql = v.OriginSel.Text()
 	p.BindSql = v.HintedSel.Text()
-	p.IsGlobal = v.IsGlobal
-	p.BindStmt = v.HintedSel	//todo 讨论一下这个地方要不要加指针
+	p.IsGlobal = v.GlobalScope
+	p.BindStmt = v.HintedSel
 	p.DefaultDb = b.ctx.GetSessionVars().CurrentDB
 
 	return p, nil
 }
-
-/*type CreateBindStmt struct {
-	ast.StmtNode
-
-	isGlobal bool
-
-	originStmt *ast.SelectStmt
-
-	bindStmt *ast.SelectStmt
-}
-*/
-type DropBindStmt struct {
-	ast.StmtNode
-
-	isGlobal bool
-
-	OriginSql string
-}
-
-/*func (n *CreateBindStmt) Accept(v ast.Visitor) (ast.Node, bool) {
-	newNode, skipChildren := v.Enter(n)
-	if skipChildren {
-		return v.Leave(newNode)
-	}
-
-	n = newNode.(*CreateBindStmt)
-
-	if n.originStmt != nil {
-		node,ok := n.originStmt.Accept(v)
-		if !ok {
-			return n, false
-		}
-
-		n.originStmt = node.(*ast.SelectStmt)
-	}
-
-	if n.bindStmt != nil {
-		node,ok := n.originStmt.Accept(v)
-		if !ok {
-			return n, false
-		}
-
-		n.bindStmt = node.(*ast.SelectStmt)
-	}
-
-	return v.Leave(n)
-}*/
 
 // Detect aggregate function or groupby clause.
 func (b *PlanBuilder) detectSelectAgg(sel *ast.SelectStmt) bool {
@@ -1781,7 +1734,7 @@ func buildShowSchema(s *ast.ShowStmt) (schema *expression.Schema) {
 		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar}
 	case ast.ShowBind:
 		names = []string{"original_sql", "bind_sql", "default_db", "status", "create_time", "update_time"}
-		ftypes= []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeTimestamp, mysql.TypeTimestamp}
+		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeTimestamp, mysql.TypeTimestamp}
 	}
 
 	schema = expression.NewSchema(make([]*expression.Column, 0, len(names))...)

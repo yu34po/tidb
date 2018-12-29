@@ -16,7 +16,7 @@ package sessionctx
 import (
 	"context"
 	"fmt"
-	"github.com/pingcap/tidb/infobind"
+
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/owner"
 	"github.com/pingcap/tidb/sessionctx/variable"
@@ -53,11 +53,7 @@ type Context interface {
 
 	GetSessionVars() *variable.SessionVars
 
-	GetSessionBind() *infobind.SessionBind
-
 	GetSessionManager() util.SessionManager
-
-	GetLocalBindCache() *infobind.BindCache
 
 	// RefreshTxnCtx commits old transaction without retry,
 	// and creates a new transaction.

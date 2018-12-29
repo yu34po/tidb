@@ -57,12 +57,12 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 		bindData := sessionBind.GetBind(v.Text(), c.Ctx.GetSessionVars().CurrentDB)
 		needGlobalMath := true
 		if bindData != nil {
-			if infobind.MatchHit(v , bindData.Ast) {
+			if infobind.MatchHit(v, bindData.Ast) {
 				needGlobalMath = false
 			}
 		}
 
-		if needGlobalMath{
+		if needGlobalMath {
 			if bm := infobind.GetBindManager(c.Ctx); bm != nil {
 				bm.MatchHint(v, infoSchema, c.Ctx.GetSessionVars().CurrentDB)
 			}

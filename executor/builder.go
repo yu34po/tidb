@@ -26,6 +26,9 @@ import (
 	"github.com/cznic/mathutil"
 	"github.com/cznic/sortutil"
 	"github.com/pingcap/errors"
+	"github.com/pingcap/parser/ast"
+	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/tidb/distsql"
 	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/executor/aggfuncs"
@@ -46,9 +49,6 @@ import (
 	"github.com/pingcap/tidb/util/ranger"
 	"github.com/pingcap/tidb/util/timeutil"
 	"github.com/pingcap/tipb/go-tipb"
-	"github.com/pingcap/parser/ast"
-	"github.com/pingcap/parser/model"
-	"github.com/pingcap/parser/mysql"
 )
 
 // executorBuilder builds an Executor from a Plan.
@@ -184,9 +184,9 @@ func (b *executorBuilder) buildDropBind(v *plannercore.DropBindPlan) Executor {
 
 	e := &DropBindExec{
 		baseExecutor: base,
-		originSql: v.OriginSql,
-		defaultDb: v.DefaultDb,
-		isGlobal: v.IsGlobal,
+		originSql:    v.OriginSql,
+		defaultDb:    v.DefaultDb,
+		isGlobal:     v.IsGlobal,
 	}
 	return e
 }
@@ -195,8 +195,8 @@ func (b *executorBuilder) buildCreateBind(v *plannercore.CreateBindPlan) Executo
 	base := newBaseExecutor(b.ctx, v.Schema(), v.ExplainID())
 	base.initCap = chunk.ZeroCapacity
 
-	databases := make([]string , 0)
-	databases = append(databases , v.DefaultDb)
+	databases := make([]string, 0)
+	databases = append(databases, v.DefaultDb)
 
 	e := &CreateBindExec{
 		baseExecutor: base,
@@ -204,7 +204,7 @@ func (b *executorBuilder) buildCreateBind(v *plannercore.CreateBindPlan) Executo
 		bindSql:      v.BindSql,
 		defaultDb:    v.DefaultDb,
 		isGlobal:     v.IsGlobal,
-		bindAst:     v.BindStmt,
+		bindAst:      v.BindStmt,
 	}
 	return e
 }

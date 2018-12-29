@@ -167,7 +167,7 @@ func (e *DDLExec) executeCreateBind(s *ast.CreateBindStmt) error {
 	if s.isGlobal {
 
 	} else {
-		e.ctx.GetSessionBind().SetBind(s.originSql , s.infoBind)
+		e.ctx.GetSessionBind().SetBind(s.originSql, s.infoBind)
 	}
 	return errors.Trace(err)
 }

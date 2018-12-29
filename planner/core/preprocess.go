@@ -113,6 +113,7 @@ func (p *preprocessor) Leave(in ast.Node) (out ast.Node, ok bool) {
 		if _, ok := x.Stmt.(*ast.ShowStmt); ok {
 			break
 		}
+
 		valid := false
 		for i, length := 0, len(ast.ExplainFormats); i < length; i++ {
 			if strings.ToLower(x.Format) == ast.ExplainFormats[i] {
@@ -362,11 +363,11 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
 	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
 
-	ok , err := p.selectBindCheck(originSelectStmt , hintedSelectStmt)
+	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
 
 	if !ok {
 		if err == nil {
-			errMsg := fmt.Sprintf("origin sql %s not equals bind sql %s ",originSelectStmt.Text() , hintedSelectStmt.Text())
+			errMsg := fmt.Sprintf("origin sql %s not equals bind sql %s ", originSelectStmt.Text(), hintedSelectStmt.Text())
 			err = errors.New(errMsg)
 		}
 		p.err = err
@@ -378,33 +379,33 @@ func (p *preprocessor) tableRefsClauseBindCheck(originalNode, hintedNode *ast.Ta
 		return false, nil
 	}
 
-	return p.joinBindCheck(originalNode.TableRefs , hintedNode.TableRefs)
+	return p.joinBindCheck(originalNode.TableRefs, hintedNode.TableRefs)
 }
 
 func (p *preprocessor) tableRefsBindCheck(originalNode, hintedNode *ast.Join) (bool, error) {
 	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
 		return false, nil
 	}
-	ok,err := p.resultSetNodeBindCheck(originalNode.Left, hintedNode.Left)
-	if !ok {
-		return ok,err
-	}
-
-	ok,err = resultSetNodeBindCheck(originalNode.Right, hintedNode.Right)
-	if !ok {
-		return ok,err
-	}
-
-	if originalNode.Tp != hintedNode.Tp{
-		return false, nil
-	}
-
-	ok,err = onConditionBindCheck(originalNode.On, hintedNode.On)
+	ok, err := p.resultSetNodeBindCheck(originalNode.Left, hintedNode.Left)
 	if !ok {
 		return ok, err
 	}
 
-	ok,err = columnNameBindCheck(originalNode.Using, hintedNode.Using)
+	ok, err = resultSetNodeBindCheck(originalNode.Right, hintedNode.Right)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.Tp != hintedNode.Tp {
+		return false, nil
+	}
+
+	ok, err = onConditionBindCheck(originalNode.On, hintedNode.On)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = columnNameBindCheck(originalNode.Using, hintedNode.Using)
 	if !ok {
 		return ok, err
 	}
@@ -417,7 +418,7 @@ func (p *preprocessor) tableRefsBindCheck(originalNode, hintedNode *ast.Join) (b
 		return false, nil
 	}
 
-	return true,nil
+	return true, nil
 }
 
 func (p *preprocessor) joinBindCheck(originalNode, hintedNode *ast.Join) (bool, error) {
@@ -425,7 +426,7 @@ func (p *preprocessor) joinBindCheck(originalNode, hintedNode *ast.Join) (bool, 
 		return false, nil
 	}
 
-	ok, err := p.resultSetNodeBindCheck(originalNode.Left , hintedNode.Left)
+	ok, err := p.resultSetNodeBindCheck(originalNode.Left, hintedNode.Left)
 	if !ok {
 		return ok, err
 	}
@@ -439,12 +440,12 @@ func (p *preprocessor) joinBindCheck(originalNode, hintedNode *ast.Join) (bool, 
 		return false, nil
 	}
 
-	ok, err = p.onConditionBindCheck(originalNode.On , hintedNode.On)
+	ok, err = p.onConditionBindCheck(originalNode.On, hintedNode.On)
 	if !ok {
 		return ok, err
 	}
 
-	ok, err = p.columnNameBindCheck(originalNode.Using , hintedNode.Using)
+	ok, err = p.columnNameBindCheck(originalNode.Using, hintedNode.Using)
 	if !ok {
 		return ok, err
 	}
@@ -475,7 +476,7 @@ func (p *preprocessor) onConditionBindCheck(originalNode, hintedNode *ast.OnCond
 		return false, nil
 	}
 
-	return p.exprNodeBindCheck(originalNode.Expr , hintedNode.Expr)
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
 }
 
 func (p *preprocessor) unionSelectListBindCheck(originalNode, hintedNode *ast.UnionSelectList) (bool, error) {
@@ -483,7 +484,7 @@ func (p *preprocessor) unionSelectListBindCheck(originalNode, hintedNode *ast.Un
 		return false, nil
 	}
 
-	return p.selectsStmtBindCheck(originalNode.Selects , hintedNode.Selects)
+	return p.selectsStmtBindCheck(originalNode.Selects, hintedNode.Selects)
 }
 
 func (p *preprocessor) unionStmtBindCheck(originalNode, hintedNode *ast.UnionStmt) (bool, error) {
@@ -491,7 +492,7 @@ func (p *preprocessor) unionStmtBindCheck(originalNode, hintedNode *ast.UnionStm
 		return false, nil
 	}
 
-	ok, err := p.unionSelectListBindCheck(originalNode.SelectList , hintedNode.SelectList)
+	ok, err := p.unionSelectListBindCheck(originalNode.SelectList, hintedNode.SelectList)
 	if !ok {
 		return ok, err
 	}
@@ -501,7 +502,7 @@ func (p *preprocessor) unionStmtBindCheck(originalNode, hintedNode *ast.UnionStm
 		return ok, err
 	}
 
-	ok, err = p.limitBindCheck(originalNode.Limit , hintedNode.Limit)
+	ok, err = p.limitBindCheck(originalNode.Limit, hintedNode.Limit)
 	if !ok {
 		return ok, err
 	}
@@ -526,8 +527,8 @@ func (p *preprocessor) resultSetNodeBindCheck(originalNode, hintedNode ast.Resul
 	switch x := originalNode.(type) {
 	case *ast.Join:
 		join, iok := hintedNode.(*ast.Join)
-		if !iok{
-			return false,nil
+		if !iok {
+			return false, nil
 		}
 
 		return p.joinBindCheck(x, join)
@@ -559,8 +560,8 @@ func (p *preprocessor) resultSetNodeBindCheck(originalNode, hintedNode ast.Resul
 		}
 	case *ast.UnionStmt:
 		union, iok := hintedNode.(*ast.UnionStmt)
-		if !iok{
-			return false,nil
+		if !iok {
+			return false, nil
 		}
 		return p.unionStmtBindCheck(x, union)
 	}
@@ -578,7 +579,7 @@ func (p *preprocessor) exprNodeBindCheck(originalNode, hintedNode ast.ExprNode) 
 	return true, nil
 }
 func (p *preprocessor) selectBindCheck(originalNode, hintedNode *ast.SelectStmt) (bool, error) {
-	if originalNode.Distinct != hintedNode.Distinct {	//todo type SelectStmtOpts struct { 这个需要不需要校验呢？
+	if originalNode.Distinct != hintedNode.Distinct { //todo type SelectStmtOpts struct { 这个需要不需要校验呢？
 		return false, nil
 	}
 
@@ -598,7 +599,6 @@ func (p *preprocessor) selectBindCheck(originalNode, hintedNode *ast.SelectStmt)
 		return false, nil
 	}
 
-
 	if originalNode.IsAfterUnionDistinct != hintedNode.IsAfterUnionDistinct {
 		return false, nil
 	}
@@ -617,32 +617,32 @@ func (p *preprocessor) selectBindCheck(originalNode, hintedNode *ast.SelectStmt)
 		return ok, err
 	}
 
-	ok, err = p.fieldsBindCheck(originalNode.Fields , hintedNode.Fields)
+	ok, err = p.fieldsBindCheck(originalNode.Fields, hintedNode.Fields)
 	if !ok {
 		return ok, err
 	}
 
-	ok, err = p.groupByBindCheck(originalNode.GroupBy , hintedNode.GroupBy)
+	ok, err = p.groupByBindCheck(originalNode.GroupBy, hintedNode.GroupBy)
 	if !ok {
 		return ok, err
 	}
 
-	ok, err = p.havingBindCheck(originalNode.Having , hintedNode.Having)
+	ok, err = p.havingBindCheck(originalNode.Having, hintedNode.Having)
 	if !ok {
 		return ok, err
 	}
 
-	ok, err = p.windowSpecsBindCheck(originalNode.WindowSpecs , hintedNode.WindowSpecs)
+	ok, err = p.windowSpecsBindCheck(originalNode.WindowSpecs, hintedNode.WindowSpecs)
 	if !ok {
 		return ok, err
 	}
 
-	ok,err = p.orderByBindCheck(originalNode.OrderBy , hintedNode.OrderBy)
+	ok, err = p.orderByBindCheck(originalNode.OrderBy, hintedNode.OrderBy)
 	if !ok {
 		return ok, err
 	}
 
-	ok,err = p.limitBindCheck(originalNode.Limit , hintedNode.Limit)
+	ok, err = p.limitBindCheck(originalNode.Limit, hintedNode.Limit)
 	if !ok {
 		return ok, err
 	}
@@ -651,7 +651,7 @@ func (p *preprocessor) selectBindCheck(originalNode, hintedNode *ast.SelectStmt)
 		return false, nil
 	}
 
-	return true,nil
+	return true, nil
 }
 
 func (p *preprocessor) limitBindCheck(originalNode, hintedNode *ast.Limit) (bool, error) {
@@ -659,15 +659,15 @@ func (p *preprocessor) limitBindCheck(originalNode, hintedNode *ast.Limit) (bool
 		return false, nil
 	}
 
-	ok,err := p.exprNodeBindCheck(originalNode.Count , hintedNode.Count)
+	ok, err := p.exprNodeBindCheck(originalNode.Count, hintedNode.Count)
 	if !ok {
 		return ok, err
 	}
 
-	return p.exprNodeBindCheck(originalNode.Offset , hintedNode.Offset)
+	return p.exprNodeBindCheck(originalNode.Offset, hintedNode.Offset)
 }
 
-func (p *preprocessor) orderByBindCheck(originalNode, hintedNode *ast.OrderByClause)(bool, error) {
+func (p *preprocessor) orderByBindCheck(originalNode, hintedNode *ast.OrderByClause) (bool, error) {
 	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
 		return false, nil
 	}
@@ -676,7 +676,7 @@ func (p *preprocessor) orderByBindCheck(originalNode, hintedNode *ast.OrderByCla
 		return false, nil
 	}
 
-	return p.itemsBindCheck(originalNode.Items , hintedNode.Items)
+	return p.itemsBindCheck(originalNode.Items, hintedNode.Items)
 }
 
 func (p *preprocessor) windowSpecsBindCheck(originalNode, hintedNode []ast.WindowSpec) (bool, error) {
@@ -684,7 +684,7 @@ func (p *preprocessor) windowSpecsBindCheck(originalNode, hintedNode []ast.Windo
 		return false, nil
 	}
 
-	if len(originalNode) != len(hintedNode){
+	if len(originalNode) != len(hintedNode) {
 		return false, nil
 	}
 
@@ -696,16 +696,15 @@ func (p *preprocessor) havingBindCheck(originalNode, hintedNode *ast.HavingClaus
 		return false, nil
 	}
 
-	return p.exprNodeBindCheck(originalNode.Expr , hintedNode.Expr)
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
 }
-
 
 func (p *preprocessor) groupByBindCheck(originalNode, hintedNode *ast.GroupByClause) (bool, error) {
 	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
 		return false, nil
 	}
 
-	return p.itemsBindCheck(originalNode.Items , hintedNode.Items)
+	return p.itemsBindCheck(originalNode.Items, hintedNode.Items)
 }
 
 func (p *preprocessor) itemBindCheck(originalNode, hintedNode *ast.ByItem) (bool, error) {
@@ -717,7 +716,7 @@ func (p *preprocessor) itemBindCheck(originalNode, hintedNode *ast.ByItem) (bool
 		return false, nil
 	}
 
-	return p.exprNodeBindCheck(originalNode.Expr , hintedNode.Expr)
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
 }
 
 func (p *preprocessor) itemsBindCheck(originalNode, hintedNode []*ast.ByItem) (bool, error) {
@@ -729,13 +728,13 @@ func (p *preprocessor) itemsBindCheck(originalNode, hintedNode []*ast.ByItem) (b
 		return false, nil
 	}
 
-	for pos,item := range originalNode {
-		ok, err := p.itemBindCheck(item , hintedNode[pos])
+	for pos, item := range originalNode {
+		ok, err := p.itemBindCheck(item, hintedNode[pos])
 		if !ok {
 			return ok, err
 		}
 	}
-	return true,nil
+	return true, nil
 }
 
 func (p *preprocessor) fieldsBindCheck(originalNode, hintedNode *ast.FieldList) (bool, error) {
@@ -747,10 +746,10 @@ func (p *preprocessor) fieldsBindCheck(originalNode, hintedNode *ast.FieldList) 
 		return false, nil
 	}
 
-	for pos,field := range originalNode.Fields {
+	for pos, field := range originalNode.Fields {
 		hintedNodeField := hintedNode.Fields[pos]
 
-		ok, err := p.selectFieldCheck(field , hintedNodeField)
+		ok, err := p.selectFieldCheck(field, hintedNodeField)
 
 		if !ok {
 			return ok, err

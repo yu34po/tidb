@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/pingcap/tidb/infobind"
+
+	//	"github.com/pingcap/tidb/infobind"
 	"sync"
 	"time"
 
@@ -42,13 +44,13 @@ type Context struct {
 	txn         wrapTxn    // mock global variable
 	Store       kv.Storage // mock global variable
 	sessionVars *variable.SessionVars
-	sessionBind *infobind.SessionBind
+//	sessionBind *infobind.SessionBind
 	mux         sync.Mutex // fix data race in ddl test.
 	ctx         context.Context
 	cancel      context.CancelFunc
 	sm          util.SessionManager
 	pcache      *kvcache.SimpleLRUCache
-	localCache *infobind.BindCache
+//	localCache  *infobind.BindCache
 }
 
 type wrapTxn struct {
@@ -90,10 +92,10 @@ func (c *Context) GetSessionVars() *variable.SessionVars {
 	return c.sessionVars
 }
 
-func (c *Context) GetSessionBind() *infobind.SessionBind {
+/*func (c *Context) GetSessionBind() *infobind.SessionBind {
 	return c.sessionBind
 }
-
+*/
 // Txn implements sessionctx.Context Txn interface.
 func (c *Context) Txn(bool) kv.Transaction {
 	return &c.txn
@@ -189,6 +191,7 @@ func (c *Context) GetSessionManager() util.SessionManager {
 func (c *Context) GetLocalBindCache() *infobind.BindCache {
 	return c.localCache
 }
+
 // SetSessionManager set the session manager.
 func (c *Context) SetSessionManager(sm util.SessionManager) {
 	c.sm = sm

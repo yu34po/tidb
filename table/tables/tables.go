@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/pingcap/tidb/infobind"
+
 	"math"
 	"strings"
 	"time"
@@ -1072,19 +1073,10 @@ func (ctx *ctxForPartitionExpr) GetSessionVars() *variable.SessionVars {
 	return ctx.sessionVars
 }
 
-func (ctx *ctxForPartitionExpr) GetSessionBind() *infobind.SessionBind {
-	return ctx.sessionBind
-}
-
 // GetSessionManager implements the sessionctx.Context interface.
 func (ctx *ctxForPartitionExpr) GetSessionManager() util.SessionManager {
 	panic("not support")
 }
-
-func (ctx *ctxForPartitionExpr) GetLocalBindCache() *infobind.BindCache{
-	panic("not support")
-}
-
 
 // RefreshTxnCtx commits old transaction without retry,
 // and creates a new transaction.
