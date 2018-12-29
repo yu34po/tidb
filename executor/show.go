@@ -152,7 +152,7 @@ func (e *ShowExec) fetchAll() error {
 		return e.fetchShowMasterStatus()
 	case ast.ShowPrivileges:
 		return e.fetchShowPrivileges()
-	case ast.ShowBind:
+	case ast.ShowBindings:
 		return e.fetchShowBind()
 
 	}

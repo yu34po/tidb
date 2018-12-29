@@ -27,6 +27,7 @@ import (
 	plannercore "github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/sessionctx"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 // Compiler compiles an ast.StmtNode to a physical plan.
@@ -46,10 +47,14 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 	node := stmtNode
 	if v, ok := stmtNode.(*ast.ExplainStmt); ok {
 		node = v.Stmt
-		node.SetText(stmtNode.Text()[len("explain "):])
+		if strings.HasPrefix(stmtNode.Text(), "explain ") {
+			node.SetText(stmtNode.Text()[len("explain "):])
+		}
 	}
-	if bm := infobind.GetBindManager(c.Ctx); bm != nil {
-		bm.MatchHint(node,  infoSchema, c.Ctx.GetSessionVars().CurrentDB)
+	if v, ok := node.(*ast.SelectStmt); ok {
+		if bm := infobind.GetBindManager(c.Ctx); bm != nil {
+			bm.MatchHint(v, infoSchema, c.Ctx.GetSessionVars().CurrentDB)
+		}
 	}
 
 	if err := plannercore.Preprocess(c.Ctx, stmtNode, infoSchema, false); err != nil {

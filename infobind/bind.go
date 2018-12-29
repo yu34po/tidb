@@ -239,7 +239,7 @@ func (b *BindManager) selectionBind(where ast.ExprNode, hindedWhere ast.ExprNode
 }
 
 func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok bool,err error) {
-	if originalNode.TableHints != nil {// todo 这个地方如果tableHints为nil了岂不是就加不进去hint了？
+	if hintedNode.TableHints != nil {
 		originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
 	}
 	if originalNode.From != nil {
