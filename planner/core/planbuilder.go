@@ -285,8 +285,6 @@ func (b *PlanBuilder) buildDropBind(v *ast.DropBindingStmt) (Plan, error) {
 	p.OriginSql = v.OriginSel.Text()
 	p.IsGlobal = v.GlobalScope
 
-	p.DefaultDb = b.ctx.GetSessionVars().CurrentDB //todo  这个地方也得注意一下，需不需要填写？ 需要遍历一把ast
-
 	return p, nil
 }
 
@@ -297,7 +295,6 @@ func (b *PlanBuilder) buildCreateBind(v *ast.CreateBindingStmt) (Plan, error) {
 	p.BindSql = v.HintedSel.Text()
 	p.IsGlobal = v.GlobalScope
 	p.BindStmt = v.HintedSel
-	p.DefaultDb = b.ctx.GetSessionVars().CurrentDB
 
 	return p, nil
 }
@@ -1732,7 +1729,7 @@ func buildShowSchema(s *ast.ShowStmt) (schema *expression.Schema) {
 	case ast.ShowPrivileges:
 		names = []string{"Privilege", "Context", "Comment"}
 		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar}
-	case ast.ShowBind:
+	case ast.ShowBindings:
 		names = []string{"original_sql", "bind_sql", "default_db", "status", "create_time", "update_time"}
 		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeTimestamp, mysql.TypeTimestamp}
 	}

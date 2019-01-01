@@ -160,26 +160,10 @@ func (e *ShowExec) fetchAll() error {
 }
 
 func (e *ShowExec) fetchShowBind() error {
-	sessionBind := e.ctx.GetSessionBind()
-
-	var bindDataMap map[string][]*infobind.BindData
-	if !e.GlobalScope {
-		bindDataMap = sessionBind.GetAllBind()
-
-		for _, bindDataArr := range bindDataMap {
-			for _, bindData := range bindDataArr {
-				e.appendRow([]interface{}{bindData.OriginalSql, bindData.BindSql, bindData.Db, bindData.Status, bindData.CreateTime, bindData.UpdateTime})
-			}
-		}
-	}
-
-	bm := infobind.GetBindManager(e.ctx)
-	globalBindDataArr := bm.GetAllBindData()
-
-	for _, bindData := range globalBindDataArr {
-		if sessionBind.GetBind(bindData.OriginalSql, bindData.Db) == nil {
-			e.appendRow([]interface{}{bindData.OriginalSql, bindData.BindSql, bindData.Db, bindData.Status, bindData.CreateTime, bindData.UpdateTime})
-		}
+	bm := infobind.GetBindManager(e.ctx);
+	bindDataArr := bm.GetAllBindData(e.GlobalScope)
+	for _, bindData := range bindDataArr {
+		e.appendRow([]interface{}{bindData.OriginalSql, bindData.BindSql, bindData.Db, bindData.Status, bindData.CreateTime, bindData.UpdateTime})
 	}
 
 	return nil

@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/pingcap/tidb/infobind"
 	"math"
 	"strings"
 	"time"
@@ -41,7 +40,7 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/kvcache"
-	binlog "github.com/pingcap/tipb/go-binlog"
+	"github.com/pingcap/tipb/go-binlog"
 	log "github.com/sirupsen/logrus"
 	"github.com/spaolacci/murmur3"
 )
@@ -1023,7 +1022,6 @@ func init() {
 // ctxForPartitionExpr implement sessionctx.Context interfact.
 type ctxForPartitionExpr struct {
 	sessionVars *variable.SessionVars
-	sessionBind *infobind.SessionBind
 }
 
 // newCtxForPartitionExpr creates a new sessionctx.Context.

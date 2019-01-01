@@ -17,7 +17,6 @@ package mock
 import (
 	"context"
 	"fmt"
-	"github.com/pingcap/tidb/infobind"
 	"sync"
 	"time"
 
@@ -30,7 +29,7 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/kvcache"
 	"github.com/pingcap/tidb/util/sqlexec"
-	binlog "github.com/pingcap/tipb/go-binlog"
+	"github.com/pingcap/tipb/go-binlog"
 )
 
 var _ sessionctx.Context = (*Context)(nil)
@@ -185,10 +184,6 @@ func (c *Context) GetStore() kv.Storage {
 // GetSessionManager implements the sessionctx.Context interface.
 func (c *Context) GetSessionManager() util.SessionManager {
 	return c.sm
-}
-
-func (c *Context) GetLocalBindCache() *infobind.BindCache {
-	return c.localCache
 }
 
 // SetSessionManager set the session manager.

@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/pingcap/tidb/terror"
 	"net"
 	"strconv"
 	"strings"
@@ -147,10 +146,6 @@ type session struct {
 	sessionVars    *variable.SessionVars
 	sessionManager util.SessionManager
 
-	sessionBind *infobind.SessionBind
-
-	localBindCache *infobind.BindCache
-
 	statsCollector *statistics.SessionStatsCollector
 	// ddlOwnerChecker is used in `select tidb_is_ddl_owner()` statement;
 	ddlOwnerChecker owner.DDLOwnerChecker
@@ -259,10 +254,6 @@ func (s *session) SetSessionManager(sm util.SessionManager) {
 
 func (s *session) GetSessionManager() util.SessionManager {
 	return s.sessionManager
-}
-
-func (s *session) GetLocalBindCache() *infobind.BindCache {
-	return s.localBindCache
 }
 
 func (s *session) StoreQueryFeedback(feedback interface{}) {
@@ -808,11 +799,6 @@ func (s *session) SetGlobalSysVar(name, value string) error {
 	return errors.Trace(err)
 }
 
-func (s *session) GetAllBindAccessor() []*infobind.BindData {
-	bm := infobind.GetBindManager(s)
-	return bm.GetAllBindData()
-}
-
 func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
 	sql := fmt.Sprintf(`DELETE FROM %s.%s WHERE %s=%s;`,
 		mysql.SystemDB, "bindsql_info", "original_sql", originSql) //todo 这个表的主键是不是需要改变一下，不然会有问题
@@ -1143,9 +1129,6 @@ func (s *session) GetSessionVars() *variable.SessionVars {
 	return s.sessionVars
 }
 
-func (s *session) GetSessionBind() *infobind.SessionBind {
-	return s.sessionBind
-}
 func (s *session) GetParser() *parser.Parser {
 	return s.parser
 }
@@ -1229,11 +1212,6 @@ func CreateSession(store kv.Storage) (Session, error) {
 		Handle: do.BindHandle(),
 	}
 	infobind.BindBinderManager(s, bm)
-
-	s.localBindCache = &infobind.BindCache{Cache: make(map[string][]*infobind.BindData, 1)}
-	s.sessionBind = infobind.NewSessionBind()
-	s.sessionBind.GlobalBindAccessor = s
-	s.sessionBind.BindManager = s.localBindCache
 
 	// Add stats collector, and it will be freed by background stats worker
 	// which periodically updates stats using the collected data.

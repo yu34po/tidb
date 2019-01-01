@@ -39,7 +39,6 @@ type HandleUpdater struct {
 type BindRecord struct {
 	OriginalSql string
 	BindSql     string
-	HashCode    []byte	//todo 这个哈希没有用
 	Db          string
 	Status      int64
 	CreateTime  time.Time
