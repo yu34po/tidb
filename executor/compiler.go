@@ -255,7 +255,7 @@ func NeedDefaultDb(stmtNode ast.ResultSetNode) bool {
 		var need bool
 		if x.Left != nil {
 			need = NeedDefaultDb(x.Left)
-			if !need{
+			if !need {
 				if x.Right != nil {
 					return NeedDefaultDb(x.Right)
 				}

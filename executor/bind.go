@@ -47,13 +47,13 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 	}
 	e.done = true
 
-	bm := infobind.GetBindManager(e.ctx);
-	if bm == nil{
+	bm := infobind.GetBindManager(e.ctx)
+	if bm == nil {
 		return errors.New("session bind manager is nil")
 	}
 
 	if e.isGlobal {
-		err := bm.AddBind(e.originSql , e.bindSql, e.defaultDb, nil, true)
+		err := bm.AddBind(e.originSql, e.bindSql, e.defaultDb, nil, true)
 		return errors.Trace(err)
 	}
 	if bm.GetSessionBind(e.originSql, e.defaultDb) != nil {
@@ -64,7 +64,7 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 		OriginalSql: e.originSql,
 		BindSql:     e.bindSql,
 		Db:          e.defaultDb,
-		Status:      0,
+		Status:      1,
 		CreateTime:  time.Now(),
 		UpdateTime:  time.Now(),
 	}
@@ -97,8 +97,8 @@ func (e *DropBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 	}
 	e.done = true
 
-	bm := infobind.GetBindManager(e.ctx);
-	if bm == nil{
+	bm := infobind.GetBindManager(e.ctx)
+	if bm == nil {
 		return errors.New("session bind manager is nil")
 	}
 

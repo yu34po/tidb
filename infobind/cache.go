@@ -46,7 +46,12 @@ type BindRecord struct {
 }
 
 func NewHandle() *Handle {
-	return &Handle{}
+	handle := &Handle{}
+	bc := &BindCache{
+		Cache: make(map[string][]*BindData, 1000),
+	}
+	handle.bind.Store(bc)
+	return handle
 }
 
 func (h *Handle) Get() *BindCache {
@@ -116,6 +121,8 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	fmt.Println("cache size", len(bc.Cache))
 
 	h.bind.Store(bc)
 	bc.Display()

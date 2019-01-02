@@ -833,17 +833,88 @@ func (s *session) SetGlobalSysVar(name, value string) error {
 }
 
 func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
-	sql := fmt.Sprintf(`DELETE FROM %s.%s WHERE %s=%s;`,
-		mysql.SystemDB, "bindsql_info", "original_sql", originSql) //todo 这个表的主键是不是需要改变一下，不然会有问题
+	sql := fmt.Sprintf(`UPDATE mysql.bind_info SET status=%d WHERE original_sql='%s' and default_db='%s';`,
+		0, originSql, defaultDb)
+	log.Info("drop bind sql:", sql)
 	_, _, err := s.ExecRestrictedSQL(s, sql)
 	return errors.Trace(err)
 }
 
 func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
-	sql := fmt.Sprintf(`INSERT INTO %s.%s(%s,%s,%s,%s) VALUES ('%s', '%s', '%s' , '%d');`,
-		mysql.SystemDB, "bindsql_info", originSql, bindSql, defaultDb, 0) //todo 这个表的主键是不是需要改变一下，不然会有问题
-	_, _, err := s.ExecRestrictedSQL(s, sql)
-	return errors.Trace(err)
+	fmt.Println("begin")
+	ctx := context.TODO()
+	_, err := s.Execute(ctx, "BEGIN")
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	fmt.Println("select")
+	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
+		originSql, defaultDb)
+	fmt.Println("select sql " , sql)
+	recordSet, err := s.execute(ctx, sql)
+	if err != nil {
+		_, rbErr := s.execute(ctx, "ROLLBACK")
+		terror.Log(errors.Trace(rbErr))
+
+		return errors.Trace(err)
+	}
+
+	if len(recordSet) > 1 {
+		_, rbErr := s.execute(ctx, "ROLLBACK")
+		terror.Log(errors.Trace(rbErr))
+
+		err = errors.New("same origin sql bindings exist more than one!")
+		return errors.Trace(err)
+	}
+
+	if len(recordSet) == 1 {
+		rows, err := drainRecordSet(ctx, s, recordSet[0])
+		if err != nil {
+			_, rbErr := s.execute(ctx, "ROLLBACK")
+			terror.Log(errors.Trace(rbErr))
+			return errors.Trace(err)
+		}
+
+		status := rows[0].GetInt64(0)
+
+		if status == 1 {
+			_, rbErr := s.execute(ctx, "ROLLBACK")
+			terror.Log(errors.Trace(rbErr))
+
+			err = errors.New("origin sql alreay has binding sql")
+			return errors.Trace(err)
+		}
+
+		sql = fmt.Sprintf("DELETE FROM mysql.bind_info WHERE original_sql='%s' and default_db='%s'", originSql, defaultDb)
+
+		_, err = s.execute(ctx, sql)
+		if err != nil {
+			_, rbErr := s.execute(ctx, "ROLLBACK")
+			terror.Log(errors.Trace(rbErr))
+			return errors.Trace(err)
+		}
+	}
+
+	fmt.Println("insert")
+	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d);`,
+		originSql, bindSql, defaultDb, 1)
+	_, err = s.execute(ctx, sql)
+	if err != nil {
+		_, rbErr := s.execute(ctx, "ROLLBACK")
+		terror.Log(errors.Trace(rbErr))
+		return errors.Trace(err)
+	}
+
+	fmt.Println("commit")
+	_, errCmt := s.execute(ctx, "COMMIT")
+	if errCmt != nil {
+		return errors.Trace(errCmt)
+	}
+
+	log.Info("add bind sql:", sql)
+
+	return nil
 }
 
 func (s *session) ParseSQL(ctx context.Context, sql, charset, collation string) ([]ast.StmtNode, []error, error) {
@@ -1246,7 +1317,9 @@ func CreateSession(store kv.Storage) (Session, error) {
 	privilege.BindPrivilegeManager(s, pm)
 
 	bm := &infobind.BindManager{
-		Handle: do.BindHandle(),
+		Handle:             do.BindHandle(),
+		GlobalBindAccessor: s,
+		SessionHandle:      infobind.NewHandle(),
 	}
 	infobind.BindBinderManager(s, bm)
 

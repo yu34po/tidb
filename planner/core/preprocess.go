@@ -369,9 +369,11 @@ func trimBank(str string) string {
 }
 
 func trimHint(str string) string {
-	reg := regexp.MustCompile("use index \\(\\s?\\S+\\s?\\)")
+	reg := regexp.MustCompile("use (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
 	str = reg.ReplaceAllString(str, "")
-	reg = regexp.MustCompile("force index \\(\\s?\\S+\\s?\\)")
+	reg = regexp.MustCompile("force (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("ignore (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
 	str = reg.ReplaceAllString(str, "")
 	reg = regexp.MustCompile("\\/\\*.*\\*\\/")
 	str = reg.ReplaceAllString(str, "")
@@ -391,16 +393,17 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 		return
 	}
 
-/*	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
+	/*	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
 
-	if !ok {
-		if err == nil {
-			errMsg := fmt.Sprintf("origin sql %s not equals bind sql %s ", originSelectStmt.Text(), hintedSelectStmt.Text())
-			err = errors.New(errMsg)
+		if !ok {
+			if err == nil {
+				errMsg := fmt.Sprintf("origin sql %s not equals bind sql %s ", originSelectStmt.Text(), hintedSelectStmt.Text())
+				err = errors.New(errMsg)
+			}
+			p.err = err
 		}
-		p.err = err
-	}
-*/}
+	*/
+}
 
 /*func (p *preprocessor) tableRefsClauseBindCheck(originalNode, hintedNode *ast.TableRefsClause) (bool, error) {
 	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {

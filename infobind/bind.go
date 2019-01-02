@@ -16,12 +16,12 @@ var _ Manager = (*BindManager)(nil)
 // User implements infobind.Manager interface.
 // This is used to update or check Ast.
 type BindManager struct {
-	is             infoschema.InfoSchema
-	currentDB      string
-	sessionHandle *Handle	//session handle
-	*Handle				//global handle
+	is                 infoschema.InfoSchema
+	currentDB          string
+	SessionHandle      *Handle //session handle
+	*Handle                    //global handle
 	GlobalBindAccessor GlobalBindAccessor
-	copy      bool
+	copy               bool
 }
 
 type keyType int
@@ -87,18 +87,19 @@ func (b *BindManager) deleteBind(hash, db string) {
 
 func (b *BindManager) GetAllBindData(globalScope bool) []*BindData {
 
-	bindDataArr := make([] *BindData,0)
+	fmt.Println("GetAllBindData globalScope:" , globalScope)
+	bindDataArr := make([]*BindData, 0)
 
 	if !globalScope {
-		for _,bindData := range b.sessionHandle.Get().Cache {
-			bindDataArr = append(bindDataArr , bindData...)
+		for _, bindData := range b.SessionHandle.Get().Cache {
+			bindDataArr = append(bindDataArr, bindData...)
 		}
 	}
 
 	for _, bindDataArr := range b.Get().Cache {
-		for _, bindData := range bindDataArr{
+		for _, bindData := range bindDataArr {
 			if b.GetSessionBind(bindData.OriginalSql, bindData.Db) == nil {
-				bindDataArr = append(bindDataArr , bindData)
+				bindDataArr = append(bindDataArr, bindData)
 			}
 		}
 	}
@@ -200,7 +201,7 @@ func (b *BindManager) unionSelectBind(originalNode, hintedNode *ast.UnionStmt) (
 	}
 	for i := len(selects) - 1; i >= 0; i-- {
 		ok, err = b.selectBind(selects[i], hintedNode.SelectList.Selects[i])
-		if !ok || err != nil{
+		if !ok || err != nil {
 			return
 		}
 	}
@@ -222,7 +223,7 @@ func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNo
 		switch v := x.Source.(type) {
 		case *ast.SelectStmt:
 			if value, iok := ts.Source.(*ast.SelectStmt); iok {
-				ok, err = b.selectBind(v, value)	//todo 这个地方不ok没有做处理
+				ok, err = b.selectBind(v, value) //todo 这个地方不ok没有做处理
 			}
 		case *ast.UnionStmt:
 			ok, err = b.unionSelectBind(v, hintedNode.(*ast.TableSource).Source.(*ast.UnionStmt))
@@ -362,7 +363,7 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 func (b *BindManager) GetSessionBind(originSql string, defaultDb string) *BindData {
 	hash := parser.Digest(originSql)
 
-	oldBindDataArr,ok := b.sessionHandle.Get().Cache[hash]
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
 	if ok {
 		for _, oldBindData := range oldBindDataArr {
 			if oldBindData.BindRecord.OriginalSql == originSql && oldBindData.BindRecord.Db == defaultDb {
@@ -376,25 +377,25 @@ func (b *BindManager) GetSessionBind(originSql string, defaultDb string) *BindDa
 
 func (b *BindManager) AddBind(originSql string, bindSql string, defaultDb string, newBindData *BindData, globalScope bool) error {
 	if globalScope {
-		return b.GlobalBindAccessor.AddGlobalBind(originSql , bindSql , defaultDb)
+		return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb)
 	}
 
 	hash := parser.Digest(originSql)
-	oldBindDataArr,ok := b.sessionHandle.Get().Cache[hash]
-	var newBindDataArr = make([] *BindData , 0)
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
+	var newBindDataArr = make([]*BindData, 0)
 	if ok {
 		for pos, oldBindData := range oldBindDataArr {
 			if oldBindData.BindRecord.OriginalSql == newBindData.BindRecord.OriginalSql && oldBindData.BindRecord.Db == newBindData.BindRecord.Db {
-				newBindDataArr = append(newBindDataArr , oldBindDataArr[:pos]...)
-				newBindDataArr = append(newBindDataArr , oldBindDataArr[pos+1:]...)
+				newBindDataArr = append(newBindDataArr, oldBindDataArr[:pos]...)
+				newBindDataArr = append(newBindDataArr, oldBindDataArr[pos+1:]...)
 			}
 		}
-		newBindDataArr = append(newBindDataArr, newBindData)
 	}
 
 	newBindDataArr = append(newBindDataArr, newBindData)
-	b.sessionHandle.Get().Cache[hash] = newBindDataArr
+	b.SessionHandle.Get().Cache[hash] = newBindDataArr
 
+	fmt.Println(b.SessionHandle.Get().Cache)
 	return nil
 }
 
@@ -405,8 +406,8 @@ func (b *BindManager) RemoveBind(originSql string, defaultDb string, globalScope
 
 	hash := parser.Digest(originSql)
 
-	oldBindDataArr,ok := b.sessionHandle.Get().Cache[hash]
-	var newBindDataArr = make([] *BindData , 0)
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
+	var newBindDataArr = make([]*BindData, 0)
 	if ok {
 		for pos, oldBindData := range oldBindDataArr {
 			if oldBindData.BindRecord.OriginalSql == originSql && oldBindData.BindRecord.Db == defaultDb {
@@ -416,15 +417,14 @@ func (b *BindManager) RemoveBind(originSql string, defaultDb string, globalScope
 		}
 
 		if len(newBindDataArr) != 0 {
-			b.sessionHandle.Get().Cache[hash] = newBindDataArr
+			b.SessionHandle.Get().Cache[hash] = newBindDataArr
 		} else {
-			delete(b.sessionHandle.Get().Cache, hash)
+			delete(b.SessionHandle.Get().Cache, hash)
 		}
 	}
 
 	return nil
 }
-
 
 type GlobalBindAccessor interface {
 	DropGlobalBind(originSql string, defaultDb string) error

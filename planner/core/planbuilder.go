@@ -1735,7 +1735,7 @@ func buildShowSchema(s *ast.ShowStmt) (schema *expression.Schema) {
 		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar}
 	case ast.ShowBindings:
 		names = []string{"original_sql", "bind_sql", "default_db", "status", "create_time", "update_time"}
-		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeTimestamp, mysql.TypeTimestamp}
+		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeDatetime, mysql.TypeDatetime}
 	}
 
 	schema = expression.NewSchema(make([]*expression.Column, 0, len(names))...)

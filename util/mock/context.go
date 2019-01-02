@@ -41,11 +41,11 @@ type Context struct {
 	txn         wrapTxn    // mock global variable
 	Store       kv.Storage // mock global variable
 	sessionVars *variable.SessionVars
-	mux    sync.Mutex // fix data race in ddl test.
-	ctx    context.Context
-	cancel context.CancelFunc
-	sm     util.SessionManager
-	pcache *kvcache.SimpleLRUCache
+	mux         sync.Mutex // fix data race in ddl test.
+	ctx         context.Context
+	cancel      context.CancelFunc
+	sm          util.SessionManager
+	pcache      *kvcache.SimpleLRUCache
 }
 
 type wrapTxn struct {
@@ -221,8 +221,8 @@ func NewContext() *Context {
 	sctx := &Context{
 		values:      make(map[fmt.Stringer]interface{}),
 		sessionVars: variable.NewSessionVars(),
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 	sctx.sessionVars.MaxChunkSize = 2
 	sctx.sessionVars.StmtCtx.TimeZone = time.UTC

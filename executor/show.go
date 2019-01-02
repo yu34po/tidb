@@ -160,8 +160,10 @@ func (e *ShowExec) fetchAll() error {
 }
 
 func (e *ShowExec) fetchShowBind() error {
-	bm := infobind.GetBindManager(e.ctx);
+	bm := infobind.GetBindManager(e.ctx)
 	bindDataArr := bm.GetAllBindData(e.GlobalScope)
+
+	fmt.Println("bindDataArr size", len(bindDataArr))
 	for _, bindData := range bindDataArr {
 		e.appendRow([]interface{}{bindData.OriginalSql, bindData.BindSql, bindData.Db, bindData.Status, bindData.CreateTime, bindData.UpdateTime})
 	}
