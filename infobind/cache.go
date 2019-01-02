@@ -18,7 +18,7 @@ import (
 
 type BindData struct {
 	bindRecord
-	ast         ast.StmtNode
+	ast ast.StmtNode
 }
 
 type BindCache struct {
@@ -186,7 +186,7 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparse
 
 	newNode := &BindData{
 		bindRecord: value,
-		ast:         stmtNodes[0],
+		ast:        stmtNodes[0],
 	}
 
 	log.Infof("original sql [%s] bind sql [%s]", value.originalSql, value.bindSql)

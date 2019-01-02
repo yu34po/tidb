@@ -1230,7 +1230,7 @@ func CreateSession(store kv.Storage) (Session, error) {
 	privilege.BindPrivilegeManager(s, pm)
 
 	bm := &infobind.BindManager{
-		Handle:         do.BindHandle(),
+		Handle: do.BindHandle(),
 	}
 	infobind.BindBinderManager(s, bm)
 	// Add stats collector, and it will be freed by background stats worker

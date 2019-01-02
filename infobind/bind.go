@@ -9,6 +9,7 @@ import (
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/sessionctx"
 	log "github.com/sirupsen/logrus"
+	"runtime"
 )
 
 var _ Manager = (*BindManager)(nil)
@@ -118,10 +119,10 @@ func checkHint(indexHints []*ast.IndexHint, tblInfo *model.TableInfo) bool {
 	return false
 }
 
-func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) (bool, error) {
+func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) error {
 
 	if len(hintedNode.IndexHints) == 0 {
-		return true, nil
+		return nil
 	}
 
 	dbName := originalNode.Schema
@@ -132,118 +133,93 @@ func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) (b
 	tbl, err := b.is.TableByName(dbName, originalNode.Name)
 	if err != nil {
 		errMsg := fmt.Sprintf("table %s or db %s not exist", originalNode.Name.L, dbName.L)
-		return false, errors.New(errMsg)
+		return errors.New(errMsg)
 	}
 
 	tableInfo := tbl.Meta()
 	ok := checkHint(hintedNode.IndexHints, tableInfo)
 	if !ok {
 		errMsg := fmt.Sprintf("table %s missing hint", tableInfo.Name)
-		return false, errors.New(errMsg)
+		return errors.New(errMsg)
 	}
 	if b.copy {
 		originalNode.IndexHints = append(originalNode.IndexHints, hintedNode.IndexHints...)
 	} else {
 		originalNode.IndexHints = nil
 	}
-	return true, nil
+	return nil
 }
 
-func (b *BindManager) joinBind(originalNode, hintedNode *ast.Join) (ok bool, err error) {
+func (b *BindManager) joinBind(originalNode, hintedNode *ast.Join) error {
 	if originalNode.Right == nil {
-		if hintedNode.Right != nil {
-			return
-		}
+
 		return b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
 	}
 
-	ok, err = b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
-	if !ok {
-		return
+	err := b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
+	if err != nil {
+		return err
 	}
 
-	ok, err = b.resultSetNodeBind(originalNode.Right, hintedNode.Right)
-	return
+	return b.resultSetNodeBind(originalNode.Right, hintedNode.Right)
 
 }
-func (b *BindManager) unionSelectBind(originalNode, hintedNode *ast.UnionStmt) (ok bool, err error) {
+func (b *BindManager) unionSelectBind(originalNode, hintedNode *ast.UnionStmt) error {
 	selects := originalNode.SelectList.Selects
-	if len(selects) != len(hintedNode.SelectList.Selects) {
-		return
-	}
 	for i := len(selects) - 1; i >= 0; i-- {
-		ok, err = b.selectBind(selects[i], hintedNode.SelectList.Selects[i])
-		if !ok || err != nil{
-			return
+		err := b.selectBind(selects[i], hintedNode.SelectList.Selects[i])
+		if err != nil {
+			return err
 		}
 	}
-	return
+	return nil
 }
 
-func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNode) (ok bool, err error) {
+func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNode) error {
 	switch x := originalNode.(type) {
 	case *ast.Join:
-		if join, iok := hintedNode.(*ast.Join); iok {
-			ok, err = b.joinBind(x, join)
-		}
+		return b.joinBind(x, hintedNode.(*ast.Join))
 	case *ast.TableSource:
-		ts, iok := hintedNode.(*ast.TableSource)
-		if !iok {
-			break
-		}
+		ts, _ := hintedNode.(*ast.TableSource)
 
 		switch v := x.Source.(type) {
 		case *ast.SelectStmt:
-			if value, iok := ts.Source.(*ast.SelectStmt); iok {
-				ok, err = b.selectBind(v, value)
-			}
+			return b.selectBind(v, ts.Source.(*ast.SelectStmt))
 		case *ast.UnionStmt:
-			ok, err = b.unionSelectBind(v, hintedNode.(*ast.TableSource).Source.(*ast.UnionStmt))
+			return b.unionSelectBind(v, hintedNode.(*ast.TableSource).Source.(*ast.UnionStmt))
 		case *ast.TableName:
-			if value, iok := ts.Source.(*ast.TableName); iok {
-				ok, err = b.dataSourceBind(v, value)
-			}
+			return b.dataSourceBind(v, ts.Source.(*ast.TableName))
+
 		}
 	case *ast.SelectStmt:
-		if sel, iok := hintedNode.(*ast.SelectStmt); iok {
-			ok, err = b.selectBind(x, sel)
-		}
+		return b.selectBind(x, hintedNode.(*ast.SelectStmt))
 	case *ast.UnionStmt:
-		ok, err = b.unionSelectBind(x, hintedNode.(*ast.UnionStmt))
+		return b.unionSelectBind(x, hintedNode.(*ast.UnionStmt))
 	default:
-		ok = true
 	}
-	return
+	return nil
 }
 
-func (b *BindManager) selectionBind(where ast.ExprNode, hindedWhere ast.ExprNode) (ok bool, err error) {
+func (b *BindManager) selectionBind(where ast.ExprNode, hintedWhere ast.ExprNode) error {
 	switch v := where.(type) {
 	case *ast.SubqueryExpr:
 		if v.Query != nil {
-			if value, ok1 := hindedWhere.(*ast.SubqueryExpr); ok1 {
-				ok, err = b.resultSetNodeBind(v.Query, value.Query)
-			}
+			return b.resultSetNodeBind(v.Query, hintedWhere.(*ast.SubqueryExpr).Query)
 		}
 	case *ast.ExistsSubqueryExpr:
 		if v.Sel != nil {
-			value, ok1 := hindedWhere.(*ast.ExistsSubqueryExpr)
-			if ok1 && value.Sel != nil {
-				ok, err = b.resultSetNodeBind(v.Sel.(*ast.SubqueryExpr).Query, value.Sel.(*ast.SubqueryExpr).Query)
-			}
+			return b.resultSetNodeBind(v.Sel.(*ast.SubqueryExpr).Query, hintedWhere.(*ast.ExistsSubqueryExpr).Sel.(*ast.SubqueryExpr).Query)
 		}
 	case *ast.PatternInExpr:
 		if v.Sel != nil {
-			value, ok1 := hindedWhere.(*ast.PatternInExpr)
-			if ok1 && value.Sel != nil {
-				ok, err = b.resultSetNodeBind(v.Sel.(*ast.SubqueryExpr).Query, value.Sel.(*ast.SubqueryExpr).Query)
-			}
+			return b.resultSetNodeBind(v.Sel.(*ast.SubqueryExpr).Query, hintedWhere.(*ast.PatternInExpr).Sel.(*ast.SubqueryExpr).Query)
 		}
 	}
-	return
+	return nil
 
 }
 
-func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok bool, err error) {
+func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) error {
 	if hintedNode.TableHints != nil {
 		if b.copy {
 			originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
@@ -252,41 +228,49 @@ func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok b
 		}
 	}
 	if originalNode.From != nil {
-		if hintedNode.From == nil {
-			return
-		}
-		ok, err = b.resultSetNodeBind(originalNode.From.TableRefs, hintedNode.From.TableRefs)
-		if !ok {
-			return
+
+		err := b.resultSetNodeBind(originalNode.From.TableRefs, hintedNode.From.TableRefs)
+		if err != nil {
+			return err
 		}
 	}
 	if originalNode.Where != nil {
-		if hintedNode.Where == nil {
-			return
-		}
-		ok, err = b.selectionBind(originalNode.Where, hintedNode.Where)
+		return b.selectionBind(originalNode.Where, hintedNode.Where)
 	}
-	return
+	return nil
 }
 
-func (b *BindManager) doTravel(originalNode, hintedNode ast.Node) (success bool, err error) {
+func (b *BindManager) doTravel(originalNode, hintedNode ast.Node) error {
 	switch x := originalNode.(type) {
 	case *ast.SelectStmt:
-		if value, ok := hintedNode.(*ast.SelectStmt); ok {
-			success, err = b.selectBind(x, value)
-		}
+		return b.selectBind(x, hintedNode.(*ast.SelectStmt))
+
 	}
-	return
+	return nil
 
 }
 
 func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string) {
 	var (
 		hintedNode ast.Node
+		hash       string
 	)
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 4096)
+			stackSize := runtime.Stack(buf, false)
+			buf = buf[:stackSize]
+			log.Errorf("hint panic stack is:\n%s", buf)
+			b.copy = false
+			b.doTravel(originalNode, hintedNode)
+			b.deleteBind(hash, db)
+		}
+	}()
+
 	bc := b.Handle.Get()
 	sql := originalNode.Text()
-	hash := parser.Digest(sql)
+	hash = parser.Digest(sql)
+
 	if bindArray, ok := bc.cache[hash]; ok {
 		for _, v := range bindArray {
 			if v.status != 1 {
@@ -305,15 +289,15 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 	b.currentDB = db
 	b.is = is
 	b.copy = true
-	success, err := b.doTravel(originalNode, hintedNode)
-	if !success || err != nil {
+	err := b.doTravel(originalNode, hintedNode)
+	if err != nil {
 		b.copy = false
 		b.doTravel(originalNode, hintedNode)
 		b.deleteBind(hash, db)
+		log.Warnf("sql %s try match hint failed %v", sql, err)
+
 	}
-	if success {
-		log.Warnf("sql %s try match hint success", sql)
-	}
-	log.Warnf("sql %s try match hint failed %v", sql, err)
+	log.Warnf("sql %s try match hint success", sql)
+
 	return
 }
