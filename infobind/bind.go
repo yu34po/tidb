@@ -87,7 +87,7 @@ func (b *BindManager) deleteBind(hash, db string) {
 
 func (b *BindManager) GetAllBindData(globalScope bool) []*BindData {
 
-	fmt.Println("GetAllBindData globalScope:" , globalScope)
+	fmt.Println("GetAllBindData globalScope:", globalScope)
 	bindDataArr := make([]*BindData, 0)
 
 	if !globalScope {

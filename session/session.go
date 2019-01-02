@@ -851,7 +851,7 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 	fmt.Println("select")
 	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
 		originSql, defaultDb)
-	fmt.Println("select sql " , sql)
+	fmt.Println("select sql ", sql)
 	recordSet, err := s.execute(ctx, sql)
 	if err != nil {
 		_, rbErr := s.execute(ctx, "ROLLBACK")
