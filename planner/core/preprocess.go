@@ -14,7 +14,6 @@
 package core
 
 import (
-	"fmt"
 	"math"
 	"regexp"
 	"strings"
@@ -392,7 +391,7 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 		return
 	}
 
-	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
+/*	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
 
 	if !ok {
 		if err == nil {
@@ -401,9 +400,9 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 		}
 		p.err = err
 	}
-}
+*/}
 
-func (p *preprocessor) tableRefsClauseBindCheck(originalNode, hintedNode *ast.TableRefsClause) (bool, error) {
+/*func (p *preprocessor) tableRefsClauseBindCheck(originalNode, hintedNode *ast.TableRefsClause) (bool, error) {
 	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
 		return false, nil
 	}
@@ -790,7 +789,7 @@ func (p *preprocessor) fieldsBindCheck(originalNode, hintedNode *ast.FieldList) 
 
 func (p *preprocessor) selectFieldCheck(originalNode, hintedNode *ast.SelectField) (bool, error) {
 
-}
+}*/
 
 func isTableAliasDuplicate(node ast.ResultSetNode, tableAliases map[string]interface{}) error {
 	if ts, ok := node.(*ast.TableSource); ok {
