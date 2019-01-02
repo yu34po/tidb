@@ -246,17 +246,23 @@ func NeedDefaultDb(stmtNode ast.ResultSetNode) bool {
 	case *ast.TableSource:
 		return NeedDefaultDb(x.Source)
 	case *ast.SelectStmt:
-		if x.From.TableRefs.Left != nil {
-			return NeedDefaultDb(x.From.TableRefs.Left)
-		}
-
-		if x.From.TableRefs.Right != nil {
-			return NeedDefaultDb(x.From.TableRefs.Left)
-		}
+		return NeedDefaultDb(x.From.TableRefs)
 	case *ast.TableName:
-		if x.Schema.L == "" {
+		if x.Schema.O == "" {
 			return true
 		}
+	case *ast.Join:
+		var need bool
+		if x.Left != nil {
+			need = NeedDefaultDb(x.Left)
+			if !need{
+				if x.Right != nil {
+					return NeedDefaultDb(x.Right)
+				}
+			}
+		}
+
+		return need
 	}
 
 	return false
