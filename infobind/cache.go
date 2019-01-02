@@ -123,7 +123,7 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	return nil
 }
 
-func parseSQL(sctx sessionctx.Context, parser *parser.Parser, sql string) ([]ast.StmtNode, error) {
+func parseSQL(sctx sessionctx.Context, parser *parser.Parser, sql string) ([]ast.StmtNode, []error, error) {
 	charset, collation := sctx.GetSessionVars().GetCharsetInfo()
 	parser.SetSQLMode(sctx.GetSessionVars().SQLMode)
 	parser.EnableWindowFunc(sctx.GetSessionVars().EnableWindowFunction)
@@ -178,7 +178,7 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparse
 		return nil
 	}
 
-	stmtNodes, err := parseSQL(sctx, sparser, value.bindSql)
+	stmtNodes, _, err := parseSQL(sctx, sparser, value.bindSql)
 	if err != nil {
 		log.Warnf("parse error:\n%v\n%s", err, value.bindSql)
 		return errors.Trace(err)

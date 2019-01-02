@@ -16,8 +16,9 @@ var _ Manager = (*BindManager)(nil)
 // User implements infobind.Manager interface.
 // This is used to update or check ast.
 type BindManager struct {
-	is             infoschema.InfoSchema
-	currentDB      string
+	is        infoschema.InfoSchema
+	currentDB string
+	copy      bool
 	*Handle
 }
 
@@ -130,7 +131,7 @@ func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) (b
 
 	tbl, err := b.is.TableByName(dbName, originalNode.Name)
 	if err != nil {
-		errMsg := fmt.Sprintf("table %s or db %s not exist",originalNode.Name.L, dbName.L)
+		errMsg := fmt.Sprintf("table %s or db %s not exist", originalNode.Name.L, dbName.L)
 		return false, errors.New(errMsg)
 	}
 
@@ -140,9 +141,11 @@ func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) (b
 		errMsg := fmt.Sprintf("table %s missing hint", tableInfo.Name)
 		return false, errors.New(errMsg)
 	}
-
-	originalNode.IndexHints = append(originalNode.IndexHints, hintedNode.IndexHints...)
-
+	if b.copy {
+		originalNode.IndexHints = append(originalNode.IndexHints, hintedNode.IndexHints...)
+	} else {
+		originalNode.IndexHints = nil
+	}
 	return true, nil
 }
 
@@ -154,7 +157,7 @@ func (b *BindManager) joinBind(originalNode, hintedNode *ast.Join) (ok bool, err
 		return b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
 	}
 
-	ok , err = b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
+	ok, err = b.resultSetNodeBind(originalNode.Left, hintedNode.Left)
 	if !ok {
 		return
 	}
@@ -162,6 +165,19 @@ func (b *BindManager) joinBind(originalNode, hintedNode *ast.Join) (ok bool, err
 	ok, err = b.resultSetNodeBind(originalNode.Right, hintedNode.Right)
 	return
 
+}
+func (b *BindManager) unionSelectBind(originalNode, hintedNode *ast.UnionStmt) (ok bool, err error) {
+	selects := originalNode.SelectList.Selects
+	if len(selects) != len(hintedNode.SelectList.Selects) {
+		return
+	}
+	for i := len(selects) - 1; i >= 0; i-- {
+		ok, err = b.selectBind(selects[i], hintedNode.SelectList.Selects[i])
+		if !ok || err != nil{
+			return
+		}
+	}
+	return
 }
 
 func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNode) (ok bool, err error) {
@@ -182,7 +198,7 @@ func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNo
 				ok, err = b.selectBind(v, value)
 			}
 		case *ast.UnionStmt:
-			ok = true
+			ok, err = b.unionSelectBind(v, hintedNode.(*ast.TableSource).Source.(*ast.UnionStmt))
 		case *ast.TableName:
 			if value, iok := ts.Source.(*ast.TableName); iok {
 				ok, err = b.dataSourceBind(v, value)
@@ -193,7 +209,7 @@ func (b *BindManager) resultSetNodeBind(originalNode, hintedNode ast.ResultSetNo
 			ok, err = b.selectBind(x, sel)
 		}
 	case *ast.UnionStmt:
-		ok = true
+		ok, err = b.unionSelectBind(x, hintedNode.(*ast.UnionStmt))
 	default:
 		ok = true
 	}
@@ -205,7 +221,7 @@ func (b *BindManager) selectionBind(where ast.ExprNode, hindedWhere ast.ExprNode
 	case *ast.SubqueryExpr:
 		if v.Query != nil {
 			if value, ok1 := hindedWhere.(*ast.SubqueryExpr); ok1 {
-				ok ,err  = b.resultSetNodeBind(v.Query, value.Query)
+				ok, err = b.resultSetNodeBind(v.Query, value.Query)
 			}
 		}
 	case *ast.ExistsSubqueryExpr:
@@ -227,9 +243,13 @@ func (b *BindManager) selectionBind(where ast.ExprNode, hindedWhere ast.ExprNode
 
 }
 
-func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok bool,err error) {
+func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok bool, err error) {
 	if hintedNode.TableHints != nil {
-		originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
+		if b.copy {
+			originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
+		} else {
+			originalNode.TableHints = nil
+		}
 	}
 	if originalNode.From != nil {
 		if hintedNode.From == nil {
@@ -249,8 +269,21 @@ func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) (ok b
 	return
 }
 
-func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string)  {
-	var hintedNode ast.Node
+func (b *BindManager) doTravel(originalNode, hintedNode ast.Node) (success bool, err error) {
+	switch x := originalNode.(type) {
+	case *ast.SelectStmt:
+		if value, ok := hintedNode.(*ast.SelectStmt); ok {
+			success, err = b.selectBind(x, value)
+		}
+	}
+	return
+
+}
+
+func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string) {
+	var (
+		hintedNode ast.Node
+	)
 	bc := b.Handle.Get()
 	sql := originalNode.Text()
 	hash := parser.Digest(sql)
@@ -271,22 +304,16 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 
 	b.currentDB = db
 	b.is = is
-
-	switch x := originalNode.(type) {
-	case *ast.SelectStmt:
-		if value, ok := hintedNode.(*ast.SelectStmt); ok {
-			success, err := b.selectBind(x, value)
-			if err != nil{
-				b.deleteBind(hash, db)
-			}
-			if success {
-				log.Warnf("sql %s try match hint success", sql)
-			} else {
-				log.Warnf("sql %s try match hint failed, err: %v", sql, err)
-			}
-			return
-		}
+	b.copy = true
+	success, err := b.doTravel(originalNode, hintedNode)
+	if !success || err != nil {
+		b.copy = false
+		b.doTravel(originalNode, hintedNode)
+		b.deleteBind(hash, db)
 	}
-	log.Warnf("sql %s try match hint failed", sql)
+	if success {
+		log.Warnf("sql %s try match hint success", sql)
+	}
+	log.Warnf("sql %s try match hint failed %v", sql, err)
 	return
 }
