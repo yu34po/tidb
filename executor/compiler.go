@@ -45,6 +45,18 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 	infoSchema := GetInfoSchema(c.Ctx)
 
 	node := stmtNode
+
+	var needDefaultDb bool
+	switch x := stmtNode.(type) {
+	case *ast.CreateBindingStmt:
+		needDefaultDb = NeedDefaultDb(x.OriginSel)
+		if !needDefaultDb {
+			needDefaultDb = NeedDefaultDb(x.HintedSel)
+		}
+	case *ast.DropBindingStmt:
+		needDefaultDb = NeedDefaultDb(x.OriginSel)
+	}
+
 	if v, ok := stmtNode.(*ast.ExplainStmt); ok {
 		node = v.Stmt
 		if strings.HasPrefix(stmtNode.Text(), "explain ") {
@@ -64,6 +76,15 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 	finalPlan, err := planner.Optimize(c.Ctx, stmtNode, infoSchema)
 	if err != nil {
 		return nil, errors.Trace(err)
+	}
+
+	if needDefaultDb {
+		switch x := finalPlan.(type) {
+		case *plannercore.CreateBindPlan:
+			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+		case *plannercore.DropBindPlan:
+			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+		}
 	}
 
 	CountStmtNode(stmtNode, c.Ctx.GetSessionVars().InRestrictedSQL)
@@ -216,4 +237,31 @@ func GetInfoSchema(ctx sessionctx.Context) infoschema.InfoSchema {
 		is = sessVar.TxnCtx.InfoSchema.(infoschema.InfoSchema)
 	}
 	return is
+}
+
+func NeedDefaultDb(stmtNode ast.ResultSetNode) bool {
+	switch x := stmtNode.(type) {
+	case *ast.TableSource:
+		return NeedDefaultDb(x.Source)
+	case *ast.SelectStmt:
+		return NeedDefaultDb(x.From.TableRefs)
+	case *ast.TableName:
+		if x.Schema.O == "" {
+			return true
+		}
+	case *ast.Join:
+		var need bool
+		if x.Left != nil {
+			need = NeedDefaultDb(x.Left)
+			if !need {
+				if x.Right != nil {
+					return NeedDefaultDb(x.Right)
+				}
+			}
+		}
+
+		return need
+	}
+
+	return false
 }

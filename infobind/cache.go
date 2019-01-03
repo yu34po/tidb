@@ -3,7 +3,6 @@ package infobind
 import (
 	"context"
 	"fmt"
-	"github.com/pingcap/tidb/types"
 	"sync/atomic"
 
 	"github.com/pingcap/errors"
@@ -11,6 +10,7 @@ import (
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/sqlexec"
 	log "github.com/sirupsen/logrus"
@@ -22,7 +22,7 @@ type BindData struct {
 }
 
 type BindCache struct {
-	cache map[string][]*BindData
+	Cache map[string][]*BindData
 }
 
 type Handle struct {
@@ -37,17 +37,21 @@ type HandleUpdater struct {
 }
 
 type bindRecord struct {
-	originalSql string
-	bindSql     string
-	hashCode    []byte
-	db          string
-	status      int64
-	createTime  types.Time
-	updateTime  types.Time
+	OriginalSql string
+	BindSql     string
+	Db          string
+	Status      int64
+	CreateTime  types.Time
+	UpdateTime  types.Time
 }
 
 func NewHandle() *Handle {
-	return &Handle{}
+	handle := &Handle{}
+	bc := &BindCache{
+		Cache: make(map[string][]*BindData, 1000),
+	}
+	handle.bind.Store(bc)
+	return handle
 }
 
 func (h *Handle) Get() *BindCache {
@@ -56,7 +60,7 @@ func (h *Handle) Get() *BindCache {
 		return bc.(*BindCache)
 	}
 	return &BindCache{
-		cache: make(map[string][]*BindData, 1000),
+		Cache: make(map[string][]*BindData, 1000),
 	}
 }
 
@@ -91,8 +95,9 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
 			if err != nil {
 				continue
 			}
-			if record.updateTime.Compare(h.LastUpdateTime) == 1 {
-				h.LastUpdateTime = record.updateTime
+
+			if record.UpdateTime.Compare(h.LastUpdateTime) == 1 {
+				h.LastUpdateTime = record.UpdateTime
 			}
 		}
 		chk = chunk.Renew(chk, h.Ctx.GetSessionVars().MaxChunkSize)
@@ -135,22 +140,22 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 	for i, f := range fs {
 		switch {
 		case f.ColumnAsName.L == "original_sql":
-			value.originalSql = row.GetString(i)
+			value.OriginalSql = row.GetString(i)
 		case f.ColumnAsName.L == "bind_sql":
-			value.bindSql = row.GetString(i)
+			value.BindSql = row.GetString(i)
 		case f.ColumnAsName.L == "default_db":
-			value.db = row.GetString(i)
-		case f.ColumnAsName.L == "status":
-			value.status = row.GetInt64(i)
+			value.Db = row.GetString(i)
+		case f.ColumnAsName.L == "Status":
+			value.Status = row.GetInt64(i)
 		case f.ColumnAsName.L == "create_time":
 			var err error
-			value.createTime = row.GetTime(i)
+			value.CreateTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}
 		case f.ColumnAsName.L == "update_time":
 			var err error
-			value.updateTime = row.GetTime(i)
+			value.UpdateTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}
@@ -160,27 +165,27 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 }
 
 func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparser *parser.Parser) error {
-	hash := parser.Digest(value.originalSql)
-	if value.status == 0 {
-		if bindArr, ok := b.cache[hash]; ok {
+	hash := parser.Digest(value.OriginalSql)
+	if value.Status == 0 {
+		if bindArr, ok := b.Cache[hash]; ok {
 			if len(bindArr) == 1 {
-				if bindArr[0].db == value.db {
-					delete(b.cache, hash)
+				if bindArr[0].Db == value.Db {
+					delete(b.Cache, hash)
 				}
 				return nil
 			}
 			for idx, v := range bindArr {
-				if v.db == value.db {
-					b.cache[hash] = append(b.cache[hash][:idx], b.cache[hash][idx+1:]...)
+				if v.Db == value.Db {
+					b.Cache[hash] = append(b.Cache[hash][:idx], b.Cache[hash][idx+1:]...)
 				}
 			}
 		}
 		return nil
 	}
 
-	stmtNodes, _, err := parseSQL(sctx, sparser, value.bindSql)
+	stmtNodes, _, err := parseSQL(sctx, sparser, value.BindSql)
 	if err != nil {
-		log.Warnf("parse error:\n%v\n%s", err, value.bindSql)
+		log.Warnf("parse error:\n%v\n%s", err, value.BindSql)
 		return errors.Trace(err)
 	}
 
@@ -189,22 +194,22 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparse
 		ast:        stmtNodes[0],
 	}
 
-	log.Infof("original sql [%s] bind sql [%s]", value.originalSql, value.bindSql)
-	if bindArr, ok := b.cache[hash]; ok {
+	log.Infof("original sql [%s] bind sql [%s]", value.OriginalSql, value.BindSql)
+	if bindArr, ok := b.Cache[hash]; ok {
 		for idx, v := range bindArr {
-			if v.db == value.db {
-				b.cache[hash][idx] = newNode
+			if v.Db == value.Db {
+				b.Cache[hash][idx] = newNode
 				return nil
 			}
 		}
 	}
-	b.cache[hash] = append(b.cache[hash], newNode)
+	b.Cache[hash] = append(b.Cache[hash], newNode)
 	return nil
 
 }
 
 func (b *BindCache) Display() {
-	for hash, bindArr := range b.cache {
+	for hash, bindArr := range b.Cache {
 		log.Infof("------------------hash entry %s-----------------------", hash)
 		for _, bindData := range bindArr {
 			log.Infof("%v", bindData.bindRecord)

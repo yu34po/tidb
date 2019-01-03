@@ -199,6 +199,10 @@ func (b *PlanBuilder) Build(node ast.Node) (Plan, error) {
 		return b.buildSimple(node.(ast.StmtNode)), nil
 	case ast.DDLNode:
 		return b.buildDDL(x)
+	case *ast.CreateBindingStmt:
+		return b.buildCreateBind(x)
+	case *ast.DropBindingStmt:
+		return b.buildDropBind(x)
 	}
 	return nil, ErrUnsupportedType.GenWithStack("Unsupported type %T", node)
 }
@@ -272,6 +276,26 @@ func (b *PlanBuilder) buildSet(v *ast.SetStmt) (Plan, error) {
 		}
 		p.VarAssigns = append(p.VarAssigns, assign)
 	}
+	return p, nil
+}
+
+func (b *PlanBuilder) buildDropBind(v *ast.DropBindingStmt) (Plan, error) {
+	p := &DropBindPlan{}
+
+	p.OriginSql = v.OriginSel.Text()
+	p.IsGlobal = v.GlobalScope
+
+	return p, nil
+}
+
+func (b *PlanBuilder) buildCreateBind(v *ast.CreateBindingStmt) (Plan, error) {
+	p := &CreateBindPlan{}
+
+	p.OriginSql = v.OriginSel.Text()
+	p.BindSql = v.HintedSel.Text()
+	p.IsGlobal = v.GlobalScope
+	p.BindStmt = v.HintedSel
+
 	return p, nil
 }
 
@@ -1709,6 +1733,9 @@ func buildShowSchema(s *ast.ShowStmt) (schema *expression.Schema) {
 	case ast.ShowPrivileges:
 		names = []string{"Privilege", "Context", "Comment"}
 		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar}
+	case ast.ShowBindings:
+		names = []string{"original_sql", "bind_sql", "default_db", "status", "create_time", "update_time"}
+		ftypes = []byte{mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeVarchar, mysql.TypeInt24, mysql.TypeDatetime, mysql.TypeDatetime}
 	}
 
 	schema = expression.NewSchema(make([]*expression.Column, 0, len(names))...)

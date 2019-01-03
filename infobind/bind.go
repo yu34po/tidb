@@ -3,25 +3,30 @@ package infobind
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/model"
+	"github.com/pingcap/parser/mysql"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/types"
 	log "github.com/sirupsen/logrus"
 )
 
 var _ Manager = (*BindManager)(nil)
 
 // User implements infobind.Manager interface.
-// This is used to update or check ast.
+// This is used to update or check Ast.
 type BindManager struct {
-	is        infoschema.InfoSchema
-	currentDB string
-	copy      bool
-	*Handle
+	is                 infoschema.InfoSchema
+	currentDB          string
+	SessionHandle      *Handle //session handle
+	*Handle                    //global handle
+	GlobalBindAccessor GlobalBindAccessor
+	copy               bool
 }
 
 type keyType int
@@ -34,6 +39,15 @@ func (k keyType) String() string {
 type Manager interface {
 	GetMatchedAst(sql, db string) *BindData
 	MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string)
+
+	GetAllSessionBindData() []*BindData
+	GetAllGlobalBindData() []*BindData
+	AddSessionBind(originSql, bindSql, defaultDb string, bindAst ast.StmtNode) error
+	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
+	RemoveSessionBind(originSql string, defaultDb string) error
+	RemoveGlobalBind(originSql string, defaultDb string) error
+
+	GetSessionBind(originSql string, defaultDb string) *BindData
 }
 
 const key keyType = 0
@@ -52,15 +66,15 @@ func GetBindManager(ctx sessionctx.Context) Manager {
 }
 func (b *BindManager) GetMatchedAst(sql string, db string) *BindData {
 	bc := b.Handle.Get()
-	if bindArray, ok := bc.cache[sql]; ok {
+	if bindArray, ok := bc.Cache[sql]; ok {
 		for _, v := range bindArray {
-			if v.status != 1 {
+			if v.Status != 1 {
 				continue
 			}
-			if len(v.db) == 0 {
+			if len(v.Db) == 0 {
 				return v
 			}
-			if v.db == db {
+			if v.Db == db {
 				return v
 			}
 		}
@@ -70,10 +84,10 @@ func (b *BindManager) GetMatchedAst(sql string, db string) *BindData {
 
 func (b *BindManager) deleteBind(hash, db string) {
 	bc := b.Handle.Get()
-	if bindArray, ok := bc.cache[hash]; ok {
+	if bindArray, ok := bc.Cache[hash]; ok {
 		for _, v := range bindArray {
-			if v.db == db {
-				v.status = -1
+			if v.Db == db {
+				v.Status = -1
 				break
 			}
 		}
@@ -133,7 +147,7 @@ func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) er
 
 	tbl, err := b.is.TableByName(dbName, originalNode.Name)
 	if err != nil {
-		errMsg := fmt.Sprintf("table %s or db %s not exist", originalNode.Name.L, dbName.L)
+		errMsg := fmt.Sprintf("table %s or Db %s not exist", originalNode.Name.L, dbName.L)
 		return errors.New(errMsg)
 	}
 
@@ -270,21 +284,34 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 
 	bc := b.Handle.Get()
 	sql := originalNode.Text()
-	hash = parser.Digest(sql)
 
-	if bindArray, ok := bc.cache[hash]; ok {
+	if bindArray, ok := bc.Cache[hash]; ok {
 		for _, v := range bindArray {
-			if v.status != 1 {
+			if v.Status != 1 {
 				continue
 			}
-			if len(v.db) == 0 || v.db == db {
+			if len(v.Db) == 0 || v.Db == db {
 				hintedNode = v.ast
 			}
 		}
 	}
 	if hintedNode == nil {
-		log.Warnf("sql %s try match hint failed", sql)
-		return
+		bc = b.Handle.Get()
+		if bindArray, ok := bc.Cache[hash]; ok {
+			for _, v := range bindArray {
+				if v.Status != 1 {
+					continue
+				}
+				if len(v.Db) == 0 || v.Db == db {
+					hintedNode = v.ast
+				}
+			}
+		}
+
+		if hintedNode == nil {
+			log.Warnf("sql %s try match hint failed", sql)
+			return
+		}
 	}
 
 	b.currentDB = db
@@ -301,4 +328,114 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 	log.Warnf("sql %s try match hint success", sql)
 
 	return
+}
+
+func (b *BindManager) GetSessionBind(originSql string, defaultDb string) *BindData {
+	hash := parser.Digest(originSql)
+
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
+	if ok {
+		for _, oldBindData := range oldBindDataArr {
+			if oldBindData.bindRecord.OriginalSql == originSql && oldBindData.bindRecord.Db == defaultDb {
+				return oldBindData
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *BindManager) AddSessionBind(originSql, bindSql, defaultDb string, bindAst ast.StmtNode) error {
+	bindRecord := bindRecord{
+		OriginalSql: originSql,
+		BindSql:     bindSql,
+		Db:          defaultDb,
+		Status:      1,
+		CreateTime: types.Time{
+			Time: types.FromGoTime(time.Now()),
+			Type: mysql.TypeTimestamp,
+			Fsp:  types.DefaultFsp,
+		},
+		UpdateTime: types.Time{
+			Time: types.FromGoTime(time.Now()),
+			Type: mysql.TypeTimestamp,
+			Fsp:  types.DefaultFsp,
+		},
+	}
+
+	bindData := &BindData{
+		bindRecord: bindRecord,
+		ast:        bindAst,
+	}
+
+	hash := parser.Digest(originSql)
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
+	if ok {
+		for idx, oldBindData := range oldBindDataArr {
+			if oldBindData.bindRecord.OriginalSql == bindRecord.OriginalSql && oldBindData.bindRecord.Db == bindRecord.Db {
+				oldBindDataArr = append(oldBindDataArr[:idx], oldBindDataArr[idx+1:]...)
+			}
+		}
+	}
+
+	oldBindDataArr = append(oldBindDataArr, bindData)
+	b.SessionHandle.Get().Cache[hash] = oldBindDataArr
+
+	return nil
+}
+
+func (b *BindManager) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
+	return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb)
+}
+
+func (b *BindManager) RemoveSessionBind(originSql string, defaultDb string) error {
+	hash := parser.Digest(originSql)
+
+	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
+	if ok {
+		for idx, oldBindData := range oldBindDataArr {
+			if oldBindData.bindRecord.OriginalSql == originSql && oldBindData.bindRecord.Db == defaultDb {
+				oldBindDataArr = append(oldBindDataArr[:idx], oldBindDataArr[idx+1:]...)
+				break
+			}
+		}
+
+		if len(oldBindDataArr) != 0 {
+			b.SessionHandle.Get().Cache[hash] = oldBindDataArr
+		} else {
+			delete(b.SessionHandle.Get().Cache, hash)
+		}
+	}
+
+	return nil
+}
+
+func (b *BindManager) RemoveGlobalBind(originSql string, defaultDb string) error {
+	return b.GlobalBindAccessor.DropGlobalBind(originSql, defaultDb)
+}
+
+func (b *BindManager) GetAllSessionBindData() []*BindData {
+	var bindDataArr []*BindData
+	for _, bindData := range b.SessionHandle.Get().Cache {
+		bindDataArr = append(bindDataArr, bindData...)
+	}
+
+	return bindDataArr
+}
+
+func (b *BindManager) GetAllGlobalBindData() []*BindData {
+	var bindDataArr []*BindData
+
+	for _, tempBindDataArr := range b.Get().Cache {
+		for _, bindData := range tempBindDataArr {
+			bindDataArr = append(bindDataArr, bindData)
+		}
+	}
+
+	return bindDataArr
+}
+
+type GlobalBindAccessor interface {
+	DropGlobalBind(originSql string, defaultDb string) error
+	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
 }

@@ -14,7 +14,9 @@
 package core
 
 import (
+	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/pingcap/errors"
@@ -85,6 +87,8 @@ func (p *preprocessor) Enter(in ast.Node) (out ast.Node, skipChildren bool) {
 		return in, true
 	case *ast.Join:
 		p.checkNonUniqTableAlias(node)
+	case *ast.CreateBindingStmt:
+		p.checkBindGrammar(node)
 	default:
 		p.parentIsJoin = false
 	}
@@ -110,6 +114,7 @@ func (p *preprocessor) Leave(in ast.Node) (out ast.Node, ok bool) {
 		if _, ok := x.Stmt.(*ast.ShowStmt); ok {
 			break
 		}
+
 		valid := false
 		for i, length := 0, len(ast.ExplainFormats); i < length; i++ {
 			if strings.ToLower(x.Format) == ast.ExplainFormats[i] {
@@ -353,6 +358,44 @@ func (p *preprocessor) checkNonUniqTableAlias(stmt *ast.Join) {
 		return
 	}
 	p.parentIsJoin = true
+}
+
+func trimBank(str string) string {
+	if str == "" {
+		return ""
+	}
+
+	str = strings.TrimSpace(str)
+	str = strings.Replace(str, "    ", " ", -1)
+	reg := regexp.MustCompile("\\s{2,}")
+	return reg.ReplaceAllString(str, " ")
+}
+
+func trimHint(str string) string {
+	reg := regexp.MustCompile("use (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("force (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("ignore (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
+	str = reg.ReplaceAllString(str, "")
+	reg = regexp.MustCompile("\\/\\*.*\\*\\/")
+	str = reg.ReplaceAllString(str, "")
+	return str
+}
+
+func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt) {
+	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
+	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
+
+	originalSql := trimHint(originSelectStmt.Text())
+	hintedSql := trimHint(hintedSelectStmt.Text())
+	originalSql = trimBank(originalSql)
+	hintedSql = trimBank(hintedSql)
+
+	if originalSql != hintedSql {
+		p.err = errors.New("bind sql not equals origin sql expect hint")
+		return
+	}
 }
 
 func isTableAliasDuplicate(node ast.ResultSetNode, tableAliases map[string]interface{}) error {
