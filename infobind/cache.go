@@ -3,8 +3,8 @@ package infobind
 import (
 	"context"
 	"fmt"
+	"github.com/pingcap/tidb/types"
 	"sync/atomic"
-	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser"
@@ -31,7 +31,7 @@ type Handle struct {
 
 type HandleUpdater struct {
 	Parser         *parser.Parser
-	LastUpdateTime time.Time
+	LastUpdateTime types.Time
 	Ctx            sessionctx.Context
 	*Handle
 }
@@ -42,8 +42,8 @@ type bindRecord struct {
 	hashCode    []byte
 	db          string
 	status      int64
-	createTime  time.Time
-	updateTime  time.Time
+	createTime  types.Time
+	updateTime  types.Time
 }
 
 func NewHandle() *Handle {
@@ -91,7 +91,7 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
 			if err != nil {
 				continue
 			}
-			if record.updateTime.After(h.LastUpdateTime) {
+			if record.updateTime.Compare(h.LastUpdateTime) == 1 {
 				h.LastUpdateTime = record.updateTime
 			}
 		}
@@ -110,7 +110,7 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	if fullLoad {
 		sql = fmt.Sprintf("select * from mysql.bind_info")
 	} else {
-		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.Format("2006-01-02 15:04:05.000000"))
+		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.String())
 	}
 	log.Infof("sql %s", sql)
 	err = h.LoadDiff(sql, bc)
@@ -144,13 +144,13 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 			value.status = row.GetInt64(i)
 		case f.ColumnAsName.L == "create_time":
 			var err error
-			value.createTime, err = row.GetTime(i).Time.GoTime(time.Local)
+			value.createTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}
 		case f.ColumnAsName.L == "update_time":
 			var err error
-			value.updateTime, err = row.GetTime(i).Time.GoTime(time.Local)
+			value.updateTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}

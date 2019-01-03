@@ -2,6 +2,8 @@ package infobind
 
 import (
 	"fmt"
+	"runtime"
+
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
@@ -9,7 +11,6 @@ import (
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/sessionctx"
 	log "github.com/sirupsen/logrus"
-	"runtime"
 )
 
 var _ Manager = (*BindManager)(nil)
