@@ -996,8 +996,6 @@ func (s *session) execute(ctx context.Context, sql string) (recordSets []sqlexec
 
 	label := s.getSQLLabel()
 	metrics.SessionExecuteParseDuration.WithLabelValues(label).Observe(time.Since(startTS).Seconds())
-	dig := parser.Digest(sql)
-	log.Infof("%s %s", sql, dig)
 	compiler := executor.Compiler{Ctx: s}
 	for _, stmtNode := range stmtNodes {
 		s.PrepareTxnCtx(ctx)
