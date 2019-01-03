@@ -848,7 +848,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 
 	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
 		originSql, defaultDb)
-	fmt.Println("sql:" , sql)
 	recordSet, err := s.execute(ctx, sql)
 	if err != nil {
 		_, rbErr := s.execute(ctx, "ROLLBACK")
@@ -856,8 +855,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 
 		return errors.Trace(err)
 	}
-
-	fmt.Println("record size", len(recordSet))
 
 	if len(recordSet) > 1 {
 		_, rbErr := s.execute(ctx, "ROLLBACK")
@@ -868,7 +865,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 	}
 
 	if len(recordSet) == 1 {
-
 		rows, err := drainRecordSet(ctx, s, recordSet[0])
 		if err != nil {
 			_, rbErr := s.execute(ctx, "ROLLBACK")
@@ -876,7 +872,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 			return errors.Trace(err)
 		}
 
-		fmt.Println("row len", len(rows))
 		if len(rows) > 0 {
 			status := rows[0].GetInt64(0)
 
@@ -1540,7 +1535,7 @@ const loadCommonGlobalVarsSQL = "select HIGH_PRIORITY * from mysql.global_variab
 	variable.WaitTimeout + quoteCommaQuote +
 	variable.InteractiveTimeout + quoteCommaQuote +
 	variable.MaxPreparedStmtCount + quoteCommaQuote +
-/* TiDB specific global variables: */
+	/* TiDB specific global variables: */
 	variable.TiDBSkipUTF8Check + quoteCommaQuote +
 	variable.TiDBIndexJoinBatchSize + quoteCommaQuote +
 	variable.TiDBIndexLookupSize + quoteCommaQuote +
@@ -1680,8 +1675,8 @@ func (s *session) ShowProcess() util.ProcessInfo {
 func logStmt(node ast.StmtNode, vars *variable.SessionVars) {
 	switch stmt := node.(type) {
 	case *ast.CreateUserStmt, *ast.DropUserStmt, *ast.AlterUserStmt, *ast.SetPwdStmt, *ast.GrantStmt,
-	*ast.RevokeStmt, *ast.AlterTableStmt, *ast.CreateDatabaseStmt, *ast.CreateIndexStmt, *ast.CreateTableStmt,
-	*ast.DropDatabaseStmt, *ast.DropIndexStmt, *ast.DropTableStmt, *ast.RenameTableStmt, *ast.TruncateTableStmt:
+		*ast.RevokeStmt, *ast.AlterTableStmt, *ast.CreateDatabaseStmt, *ast.CreateIndexStmt, *ast.CreateTableStmt,
+		*ast.DropDatabaseStmt, *ast.DropIndexStmt, *ast.DropTableStmt, *ast.RenameTableStmt, *ast.TruncateTableStmt:
 		user := vars.User
 		schemaVersion := vars.TxnCtx.SchemaVersion
 		if ss, ok := node.(ast.SensitiveStmtNode); ok {
