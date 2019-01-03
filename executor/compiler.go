@@ -82,10 +82,8 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 		switch x := finalPlan.(type) {
 		case *plannercore.CreateBindPlan:
 			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
-
 		case *plannercore.DropBindPlan:
 			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
-
 		}
 	}
 

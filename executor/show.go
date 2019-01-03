@@ -154,7 +154,6 @@ func (e *ShowExec) fetchAll() error {
 		return e.fetchShowPrivileges()
 	case ast.ShowBindings:
 		return e.fetchShowBind()
-
 	}
 	return nil
 }
