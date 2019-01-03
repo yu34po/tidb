@@ -835,7 +835,6 @@ func (s *session) SetGlobalSysVar(name, value string) error {
 func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
 	sql := fmt.Sprintf(`UPDATE mysql.bind_info SET status=%d WHERE original_sql='%s' and default_db='%s';`,
 		0, originSql, defaultDb)
-	log.Info("drop bind sql:", sql)
 	_, _, err := s.ExecRestrictedSQL(s, sql)
 	return errors.Trace(err)
 }
@@ -906,8 +905,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 	if errCmt != nil {
 		return errors.Trace(errCmt)
 	}
-
-	log.Info("add bind sql:", sql)
 
 	return nil
 }
