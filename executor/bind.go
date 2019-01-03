@@ -53,7 +53,7 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 	}
 
 	if e.isGlobal {
-		err := bm.AddBind(e.originSql, e.bindSql, e.defaultDb, nil, true)
+		err := bm.AddGlobalBind(e.originSql, e.bindSql, e.defaultDb)
 		return errors.Trace(err)
 	}
 	if bm.GetSessionBind(e.originSql, e.defaultDb) != nil {
@@ -73,7 +73,7 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 		BindRecord: bindRecord,
 		Ast:        e.bindAst,
 	}
-	err := bm.AddBind(e.originSql, "", "", bindingData, false)
+	err := bm.AddSessionBind(e.originSql, bindingData)
 	return errors.Trace(err)
 }
 
@@ -102,6 +102,11 @@ func (e *DropBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 		return errors.New("session bind manager is nil")
 	}
 
-	err := bm.RemoveBind(e.originSql, e.defaultDb, e.isGlobal)
+	var err error
+	if e.isGlobal {
+		err = bm.RemoveGlobalBind(e.originSql, e.defaultDb)
+	} else {
+		err = bm.RemoveSessionBind(e.originSql, e.defaultDb)
+	}
 	return errors.Trace(err)
 }

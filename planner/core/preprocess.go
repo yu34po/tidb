@@ -14,6 +14,7 @@
 package core
 
 import (
+	"fmt"
 	"math"
 	"regexp"
 	"strings"
@@ -363,17 +364,19 @@ func trimBank(str string) string {
 	if str == "" {
 		return ""
 	}
+
+	str = strings.TrimSpace(str)
 	str = strings.Replace(str, "    ", " ", -1)
 	reg := regexp.MustCompile("\\s{2,}")
 	return reg.ReplaceAllString(str, " ")
 }
 
 func trimHint(str string) string {
-	reg := regexp.MustCompile("use (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
+	reg := regexp.MustCompile("use (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
 	str = reg.ReplaceAllString(str, "")
-	reg = regexp.MustCompile("force (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
+	reg = regexp.MustCompile("force (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
 	str = reg.ReplaceAllString(str, "")
-	reg = regexp.MustCompile("ignore (index|key){1} *(for join|for order by|for group by){0,1} +\\(\\s?\\S+\\s?\\)")
+	reg = regexp.MustCompile("ignore (index|key){1}\\s*(for join|for order by|for group by){0,1}\\s*\\(\\s?\\S+\\s?\\)")
 	str = reg.ReplaceAllString(str, "")
 	reg = regexp.MustCompile("\\/\\*.*\\*\\/")
 	str = reg.ReplaceAllString(str, "")
@@ -384,12 +387,19 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
 	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
 
-	originalSql := trimBank(originSelectStmt.Text())
-	hintedSql := trimBank(hintedSelectStmt.Text())
-	hintedSql = trimHint(hintedSql)
+	fmt.Println("origin select stmt" , originSelectStmt.Text())
+	fmt.Println("hinted select stmt" , hintedSelectStmt.Text())
+	originalSql := trimHint(originSelectStmt.Text())
+	hintedSql := trimHint(hintedSelectStmt.Text())
+	fmt.Println("originSql before hint:", originalSql)
+	fmt.Println("hintedSql before hint:", hintedSql)
+	originalSql = trimBank(originalSql)
 	hintedSql = trimBank(hintedSql)
-	if originalSql == hintedSql {
-		p.err = errors.New("bind sql not equal")
+
+	if originalSql != hintedSql {
+		p.err = errors.New("bind sql not equals origin sql expect hint")
+		fmt.Println("originSql trim bank:", originalSql)
+		fmt.Println("hintedSql trim bank:", hintedSql)
 		return
 	}
 }

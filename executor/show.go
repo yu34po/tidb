@@ -161,7 +161,13 @@ func (e *ShowExec) fetchAll() error {
 
 func (e *ShowExec) fetchShowBind() error {
 	bm := infobind.GetBindManager(e.ctx)
-	bindDataArr := bm.GetAllBindData(e.GlobalScope)
+
+	var bindDataArr []*infobind.BindData
+	if e.GlobalScope {
+		bindDataArr = bm.GetAllGlobalBindData()
+	} else {
+		bindDataArr = bm.GetAllSessionBindData()
+	}
 
 	fmt.Println("bindDataArr size", len(bindDataArr))
 	for _, bindData := range bindDataArr {

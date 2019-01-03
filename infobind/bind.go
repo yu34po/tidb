@@ -34,9 +34,14 @@ func (k keyType) String() string {
 type Manager interface {
 	GetMatchedAst(sql, db string) *BindData
 	MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string)
-	GetAllBindData(isGlobalScope bool) []*BindData
-	AddBind(originSql string, bindSql string, defaultDb string, newBindData *BindData, globalScope bool) error
-	RemoveBind(originSql string, defaultDb string, globalScope bool) error
+
+	GetAllSessionBindData() []*BindData
+	GetAllGlobalBindData() []*BindData
+	AddSessionBind(originSql string, newBindData *BindData) error
+	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
+	RemoveSessionBind(originSql string, defaultDb string) error
+	RemoveGlobalBind(originSql string, defaultDb string) error
+
 	GetSessionBind(originSql string, defaultDb string) *BindData
 }
 
@@ -83,28 +88,6 @@ func (b *BindManager) deleteBind(hash, db string) {
 		}
 	}
 	b.Handle.bind.Store(bc)
-}
-
-func (b *BindManager) GetAllBindData(globalScope bool) []*BindData {
-
-	fmt.Println("GetAllBindData globalScope:", globalScope)
-	bindDataArr := make([]*BindData, 0)
-
-	if !globalScope {
-		for _, bindData := range b.SessionHandle.Get().Cache {
-			bindDataArr = append(bindDataArr, bindData...)
-		}
-	}
-
-	for _, bindDataArr := range b.Get().Cache {
-		for _, bindData := range bindDataArr {
-			if b.GetSessionBind(bindData.OriginalSql, bindData.Db) == nil {
-				bindDataArr = append(bindDataArr, bindData)
-			}
-		}
-	}
-
-	return bindDataArr
 }
 
 func isPrimaryIndexHint(indexName model.CIStr) bool {
@@ -375,14 +358,10 @@ func (b *BindManager) GetSessionBind(originSql string, defaultDb string) *BindDa
 	return nil
 }
 
-func (b *BindManager) AddBind(originSql string, bindSql string, defaultDb string, newBindData *BindData, globalScope bool) error {
-	if globalScope {
-		return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb)
-	}
-
+func (b *BindManager) AddSessionBind(originSql string, newBindData *BindData) error {
 	hash := parser.Digest(originSql)
 	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
-	var newBindDataArr = make([]*BindData, 0)
+	var newBindDataArr []*BindData
 	if ok {
 		for pos, oldBindData := range oldBindDataArr {
 			if oldBindData.BindRecord.OriginalSql == newBindData.BindRecord.OriginalSql && oldBindData.BindRecord.Db == newBindData.BindRecord.Db {
@@ -399,11 +378,11 @@ func (b *BindManager) AddBind(originSql string, bindSql string, defaultDb string
 	return nil
 }
 
-func (b *BindManager) RemoveBind(originSql string, defaultDb string, globalScope bool) error {
-	if globalScope {
-		return b.GlobalBindAccessor.DropGlobalBind(originSql, defaultDb)
-	}
+func (b *BindManager) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
+	return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb)
+}
 
+func (b *BindManager) RemoveSessionBind(originSql string, defaultDb string) error {
 	hash := parser.Digest(originSql)
 
 	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
@@ -424,6 +403,31 @@ func (b *BindManager) RemoveBind(originSql string, defaultDb string, globalScope
 	}
 
 	return nil
+}
+
+func (b *BindManager) RemoveGlobalBind(originSql string, defaultDb string) error {
+	return b.GlobalBindAccessor.DropGlobalBind(originSql, defaultDb)
+}
+
+func (b *BindManager) GetAllSessionBindData() []*BindData {
+	var bindDataArr []*BindData
+	for _, bindData := range b.SessionHandle.Get().Cache {
+		bindDataArr = append(bindDataArr, bindData...)
+	}
+
+	return bindDataArr
+}
+
+func (b *BindManager) GetAllGlobalBindData() []*BindData {
+	var bindDataArr []*BindData
+
+	for _, tempBindDataArr := range b.Get().Cache {
+		for _, bindData := range tempBindDataArr {
+			bindDataArr = append(bindDataArr, bindData)
+		}
+	}
+
+	return bindDataArr
 }
 
 type GlobalBindAccessor interface {
