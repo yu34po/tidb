@@ -14,7 +14,6 @@
 package core
 
 import (
-	"fmt"
 	"math"
 	"regexp"
 	"strings"
