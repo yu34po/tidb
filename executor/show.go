@@ -169,7 +169,6 @@ func (e *ShowExec) fetchShowBind() error {
 		bindDataArr = bm.GetAllSessionBindData()
 	}
 
-	fmt.Println("bindDataArr size", len(bindDataArr))
 	for _, bindData := range bindDataArr {
 		e.appendRow([]interface{}{bindData.OriginalSql, bindData.BindSql, bindData.Db, bindData.Status, bindData.CreateTime, bindData.UpdateTime})
 	}

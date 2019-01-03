@@ -123,8 +123,6 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 		return errors.Trace(err)
 	}
 
-	fmt.Println("cache size", len(bc.Cache))
-
 	h.bind.Store(bc)
 	bc.Display()
 	return nil

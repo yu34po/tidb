@@ -381,7 +381,6 @@ func (b *BindManager) AddSessionBind(originSql, bindSql, defaultDb string, bindA
 	oldBindDataArr = append(oldBindDataArr, bindData)
 	b.SessionHandle.Get().Cache[hash] = oldBindDataArr
 
-	fmt.Println(b.SessionHandle.Get().Cache)
 	return nil
 }
 

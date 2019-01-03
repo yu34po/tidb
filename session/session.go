@@ -841,17 +841,14 @@ func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
 }
 
 func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
-	fmt.Println("begin")
 	ctx := context.TODO()
 	_, err := s.Execute(ctx, "BEGIN")
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	fmt.Println("select")
 	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
 		originSql, defaultDb)
-	fmt.Println("select sql ", sql)
 	recordSet, err := s.execute(ctx, sql)
 	if err != nil {
 		_, rbErr := s.execute(ctx, "ROLLBACK")
@@ -896,7 +893,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		}
 	}
 
-	fmt.Println("insert")
 	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d);`,
 		originSql, bindSql, defaultDb, 1)
 	_, err = s.execute(ctx, sql)
@@ -906,7 +902,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		return errors.Trace(err)
 	}
 
-	fmt.Println("commit")
 	_, errCmt := s.execute(ctx, "COMMIT")
 	if errCmt != nil {
 		return errors.Trace(errCmt)
