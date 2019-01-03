@@ -387,8 +387,8 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
 	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
 
-	fmt.Println("origin select stmt" , originSelectStmt.Text())
-	fmt.Println("hinted select stmt" , hintedSelectStmt.Text())
+	fmt.Println("origin select stmt", originSelectStmt.Text())
+	fmt.Println("hinted select stmt", hintedSelectStmt.Text())
 	originalSql := trimHint(originSelectStmt.Text())
 	hintedSql := trimHint(hintedSelectStmt.Text())
 	fmt.Println("originSql before hint:", originalSql)

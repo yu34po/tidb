@@ -20,7 +20,6 @@ import (
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/tidb/infobind"
 	"github.com/pingcap/tidb/util/chunk"
-	"time"
 )
 
 type CreateBindExec struct {
@@ -60,20 +59,7 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 		return errors.Trace(errors.New(fmt.Sprintf("%s bind alreay exist", e.originSql)))
 	}
 
-	bindRecord := infobind.BindRecord{
-		OriginalSql: e.originSql,
-		BindSql:     e.bindSql,
-		Db:          e.defaultDb,
-		Status:      1,
-		CreateTime:  time.Now(),
-		UpdateTime:  time.Now(),
-	}
-
-	bindingData := &infobind.BindData{
-		BindRecord: bindRecord,
-		Ast:        e.bindAst,
-	}
-	err := bm.AddSessionBind(e.originSql, bindingData)
+	err := bm.AddSessionBind(e.originSql, e.bindSql, e.defaultDb, e.bindAst)
 	return errors.Trace(err)
 }
 

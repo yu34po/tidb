@@ -4,21 +4,21 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/sessionctx"
+	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/sqlexec"
 	log "github.com/sirupsen/logrus"
 )
 
 type BindData struct {
-	BindRecord
-	Ast ast.StmtNode
+	bindRecord
+	ast ast.StmtNode
 }
 
 type BindCache struct {
@@ -31,18 +31,18 @@ type Handle struct {
 
 type HandleUpdater struct {
 	Parser         *parser.Parser
-	LastUpdateTime time.Time
+	LastUpdateTime types.Time
 	Ctx            sessionctx.Context
 	*Handle
 }
 
-type BindRecord struct {
+type bindRecord struct {
 	OriginalSql string
 	BindSql     string
 	Db          string
 	Status      int64
-	CreateTime  time.Time
-	UpdateTime  time.Time
+	CreateTime  types.Time
+	UpdateTime  types.Time
 }
 
 func NewHandle() *Handle {
@@ -95,7 +95,8 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
 			if err != nil {
 				continue
 			}
-			if record.UpdateTime.After(h.LastUpdateTime) {
+
+			if record.UpdateTime.Compare(h.LastUpdateTime) == 1 {
 				h.LastUpdateTime = record.UpdateTime
 			}
 		}
@@ -114,7 +115,7 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	if fullLoad {
 		sql = fmt.Sprintf("select * from mysql.bind_info")
 	} else {
-		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.Format("2006-01-02 15:04:05.000000"))
+		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.String())
 	}
 	log.Infof("sql %s", sql)
 	err = h.LoadDiff(sql, bc)
@@ -136,8 +137,8 @@ func parseSQL(sctx sessionctx.Context, parser *parser.Parser, sql string) ([]ast
 	return parser.Parse(sql, charset, collation)
 }
 
-func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, BindRecord) {
-	var value BindRecord
+func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord) {
+	var value bindRecord
 	for i, f := range fs {
 		switch {
 		case f.ColumnAsName.L == "original_sql":
@@ -150,13 +151,13 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, BindRecord
 			value.Status = row.GetInt64(i)
 		case f.ColumnAsName.L == "create_time":
 			var err error
-			value.CreateTime, err = row.GetTime(i).Time.GoTime(time.Local)
+			value.CreateTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}
 		case f.ColumnAsName.L == "update_time":
 			var err error
-			value.UpdateTime, err = row.GetTime(i).Time.GoTime(time.Local)
+			value.UpdateTime = row.GetTime(i)
 			if err != nil {
 				return errors.Trace(err), value
 			}
@@ -165,7 +166,7 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, BindRecord
 	return nil, value
 }
 
-func (b *BindCache) appendNode(sctx sessionctx.Context, value BindRecord, sparser *parser.Parser) error {
+func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparser *parser.Parser) error {
 	hash := parser.Digest(value.OriginalSql)
 	if value.Status == 0 {
 		if bindArr, ok := b.Cache[hash]; ok {
@@ -191,8 +192,8 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value BindRecord, sparse
 	}
 
 	newNode := &BindData{
-		BindRecord: value,
-		Ast:        stmtNodes[0],
+		bindRecord: value,
+		ast:        stmtNodes[0],
 	}
 
 	log.Infof("original sql [%s] bind sql [%s]", value.OriginalSql, value.BindSql)
@@ -213,7 +214,7 @@ func (b *BindCache) Display() {
 	for hash, bindArr := range b.Cache {
 		log.Infof("------------------hash entry %s-----------------------", hash)
 		for _, bindData := range bindArr {
-			log.Infof("%v", bindData.BindRecord)
+			log.Infof("%v", bindData.bindRecord)
 		}
 		log.Infof("------------------hash entry end -----------------------")
 

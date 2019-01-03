@@ -273,6 +273,7 @@ const (
 	version22 = 22
 	version23 = 23
 	version24 = 24
+	version25 = 25
 )
 
 func checkBootstrapped(s Session) (bool, error) {
@@ -425,6 +426,10 @@ func upgrade(s Session) {
 
 	if ver < version24 {
 		upgradeToVer24(s)
+	}
+
+	if ver < version25 {
+		upgradeToVer25(s)
 	}
 
 	updateBootstrapVer(s)
@@ -679,6 +684,10 @@ func writeSystemTZ(s Session) {
 // upgradeToVer24 initializes `System` timezone according to docs/design/2018-09-10-adding-tz-env.md
 func upgradeToVer24(s Session) {
 	writeSystemTZ(s)
+}
+
+func upgradeToVer25(s Session) {
+	doReentrantDDL(s, CreateBindInfoTable)
 }
 
 // updateBootstrapVer updates bootstrap version variable in mysql.TiDB table.
