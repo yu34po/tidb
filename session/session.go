@@ -839,74 +839,62 @@ func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
 	return errors.Trace(err)
 }
 
-func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
-	ctx := context.TODO()
-	_, err := s.Execute(ctx, "BEGIN")
+func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string) (err error) {
+	ctx := context.Background()
+
+	_, err = s.Execute(ctx, "BEGIN")
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	defer func() {
+		if err == nil {
+			_, err = s.execute(ctx, "COMMIT")
+		} else {
+			_, rbErr := s.execute(ctx, "ROLLBACK")
+			terror.Log(errors.Trace(rbErr))
+		}
+	}()
 
 	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
 		originSql, defaultDb)
 	recordSet, err := s.execute(ctx, sql)
 	if err != nil {
-		_, rbErr := s.execute(ctx, "ROLLBACK")
-		terror.Log(errors.Trace(rbErr))
-
-		return errors.Trace(err)
+		return
 	}
 
 	if len(recordSet) > 1 {
-		_, rbErr := s.execute(ctx, "ROLLBACK")
-		terror.Log(errors.Trace(rbErr))
-
 		err = errors.New("same origin sql bindings exist more than one!")
-		return errors.Trace(err)
+		return
 	}
 
 	if len(recordSet) == 1 {
-		rows, err := drainRecordSet(ctx, s, recordSet[0])
+		var rows []chunk.Row
+		rows, err = drainRecordSet(ctx, s, recordSet[0])
 		if err != nil {
-			_, rbErr := s.execute(ctx, "ROLLBACK")
-			terror.Log(errors.Trace(rbErr))
-			return errors.Trace(err)
+			return
 		}
 
-		status := rows[0].GetInt64(0)
+		if len(rows) > 0 {
+			status := rows[0].GetInt64(0)
+			if status == 1 {
+				err = errors.New("origin sql already has binding sql")
+				return
+			}
 
-		if status == 1 {
-			_, rbErr := s.execute(ctx, "ROLLBACK")
-			terror.Log(errors.Trace(rbErr))
-
-			err = errors.New("origin sql alreay has binding sql")
-			return errors.Trace(err)
-		}
-
-		sql = fmt.Sprintf("DELETE FROM mysql.bind_info WHERE original_sql='%s' and default_db='%s'", originSql, defaultDb)
-
-		_, err = s.execute(ctx, sql)
-		if err != nil {
-			_, rbErr := s.execute(ctx, "ROLLBACK")
-			terror.Log(errors.Trace(rbErr))
-			return errors.Trace(err)
+			sql = fmt.Sprintf("DELETE FROM mysql.bind_info WHERE original_sql='%s' and default_db='%s'", originSql, defaultDb)
+			_, err = s.execute(ctx, sql)
+			if err != nil {
+				return
+			}
 		}
 	}
 
 	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d);`,
 		originSql, bindSql, defaultDb, 1)
 	_, err = s.execute(ctx, sql)
-	if err != nil {
-		_, rbErr := s.execute(ctx, "ROLLBACK")
-		terror.Log(errors.Trace(rbErr))
-		return errors.Trace(err)
-	}
 
-	_, errCmt := s.execute(ctx, "COMMIT")
-	if errCmt != nil {
-		return errors.Trace(errCmt)
-	}
-
-	return nil
+	return
 }
 
 func (s *session) ParseSQL(ctx context.Context, sql, charset, collation string) ([]ast.StmtNode, []error, error) {
