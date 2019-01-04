@@ -863,11 +863,6 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		return
 	}
 
-	if len(recordSet) > 1 {
-		err = errors.New("same origin sql bindings exist more than one!")
-		return
-	}
-
 	if len(recordSet) == 1 {
 		var rows []chunk.Row
 		rows, err = drainRecordSet(ctx, s, recordSet[0])
@@ -890,7 +885,7 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		}
 	}
 
-	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d);`,
+	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d)`,
 		originSql, bindSql, defaultDb, 1)
 	_, err = s.execute(ctx, sql)
 
