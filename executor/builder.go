@@ -195,9 +195,6 @@ func (b *executorBuilder) buildCreateBind(v *plannercore.CreateBindPlan) Executo
 	base := newBaseExecutor(b.ctx, v.Schema(), v.ExplainID())
 	base.initCap = chunk.ZeroCapacity
 
-	databases := make([]string, 0)
-	databases = append(databases, v.DefaultDb)
-
 	e := &CreateBindExec{
 		baseExecutor: base,
 		originSql:    v.OriginSql,
