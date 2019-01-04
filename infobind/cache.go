@@ -55,13 +55,7 @@ func NewHandle() *Handle {
 }
 
 func (h *Handle) Get() *BindCache {
-	bc := h.bind.Load()
-	if bc != nil {
-		return bc.(*BindCache)
-	}
-	return &BindCache{
-		Cache: make(map[string][]*BindData, 1000),
-	}
+	return h.bind.Load().(*BindCache)
 }
 
 func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
@@ -90,7 +84,6 @@ func (h *HandleUpdater) LoadDiff(sql string, bc *BindCache) error {
 				log.Errorf("row decode error %s", err)
 				continue
 			}
-			log.Infof("record %v", record)
 			err = bc.appendNode(h.Ctx, record, h.Parser)
 			if err != nil {
 				continue
@@ -145,7 +138,7 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 			value.BindSql = row.GetString(i)
 		case f.ColumnAsName.L == "default_db":
 			value.Db = row.GetString(i)
-		case f.ColumnAsName.L == "Status":
+		case f.ColumnAsName.L == "status":
 			value.Status = row.GetInt64(i)
 		case f.ColumnAsName.L == "create_time":
 			var err error
