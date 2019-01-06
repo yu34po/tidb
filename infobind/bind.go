@@ -46,8 +46,6 @@ type Manager interface {
 	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
 	RemoveSessionBind(originSql string, defaultDb string) error
 	RemoveGlobalBind(originSql string, defaultDb string) error
-
-	GetSessionBind(originSql string, defaultDb string) *BindData
 }
 
 const key keyType = 0
@@ -282,15 +280,19 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 		}
 	}()
 
-	bc := b.Handle.Get()
+	bc := b.SessionHandle.Get()
 	sql := originalNode.Text()
+	hash = parser.Digest(sql)
 
+	fmt.Println("session Bindings")
+	bc.Display()
 	if bindArray, ok := bc.Cache[hash]; ok {
 		for _, v := range bindArray {
 			if v.Status != 1 {
 				continue
 			}
 			if len(v.Db) == 0 || v.Db == db {
+				fmt.Println("getSessionBindSql:",v.BindSql)
 				hintedNode = v.ast
 			}
 		}
@@ -303,6 +305,7 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 					continue
 				}
 				if len(v.Db) == 0 || v.Db == db {
+					fmt.Println("getGlobalBindSql:",v.BindSql)
 					hintedNode = v.ast
 				}
 			}
@@ -328,21 +331,6 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 	log.Warnf("sql %s try match hint success", sql)
 
 	return
-}
-
-func (b *BindManager) GetSessionBind(originSql string, defaultDb string) *BindData {
-	hash := parser.Digest(originSql)
-
-	oldBindDataArr, ok := b.SessionHandle.Get().Cache[hash]
-	if ok {
-		for _, oldBindData := range oldBindDataArr {
-			if oldBindData.bindRecord.OriginalSql == originSql && oldBindData.bindRecord.Db == defaultDb {
-				return oldBindData
-			}
-		}
-	}
-
-	return nil
 }
 
 func (b *BindManager) AddSessionBind(originSql, bindSql, defaultDb string, bindAst ast.StmtNode) error {
@@ -373,7 +361,12 @@ func (b *BindManager) AddSessionBind(originSql, bindSql, defaultDb string, bindA
 	if ok {
 		for idx, oldBindData := range oldBindDataArr {
 			if oldBindData.bindRecord.OriginalSql == bindRecord.OriginalSql && oldBindData.bindRecord.Db == bindRecord.Db {
-				oldBindDataArr = append(oldBindDataArr[:idx], oldBindDataArr[idx+1:]...)
+				if oldBindData.Status == 1 {
+					return errors.Trace(errors.New(fmt.Sprintf("%s bind alreay exist", originSql)))
+				} else {
+					oldBindDataArr = append(oldBindDataArr[:idx], oldBindDataArr[idx+1:]...)
+					break
+				}
 			}
 		}
 	}
