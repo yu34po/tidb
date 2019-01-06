@@ -15,8 +15,6 @@ package executor
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/pingcap/errors"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/tidb/infobind"
@@ -55,9 +53,6 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 	if e.isGlobal {
 		err := bm.AddGlobalBind(e.originSql, e.bindSql, e.defaultDb)
 		return errors.Trace(err)
-	}
-	if bm.GetSessionBind(e.originSql, e.defaultDb) != nil {
-		return errors.Trace(errors.New(fmt.Sprintf("%s bind alreay exist", e.originSql)))
 	}
 
 	err := bm.AddSessionBind(e.originSql, e.bindSql, e.defaultDb, e.bindAst)

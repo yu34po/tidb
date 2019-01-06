@@ -65,6 +65,7 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 	}
 	if v, ok := node.(*ast.SelectStmt); ok {
 		if bm := infobind.GetBindManager(c.Ctx); bm != nil {
+			fmt.Println("in this")
 			bm.MatchHint(v, infoSchema, c.Ctx.GetSessionVars().CurrentDB)
 		}
 	}
