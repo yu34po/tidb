@@ -81,7 +81,7 @@ func (e *DropBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 
 	bm := infobind.GetBindManager(e.ctx)
 	if bm == nil {
-		return errors.New("session bind manager is nil")
+		return errors.New("bind manager is nil")
 	}
 
 	var err error

@@ -260,7 +260,6 @@ func (b *BindManager) doTravel(originalNode, hintedNode ast.Node) error {
 
 	}
 	return nil
-
 }
 
 func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema, db string) {
@@ -284,15 +283,12 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 	sql := originalNode.Text()
 	hash = parser.Digest(sql)
 
-	fmt.Println("session Bindings")
-	bc.Display()
 	if bindArray, ok := bc.Cache[hash]; ok {
 		for _, v := range bindArray {
 			if v.Status != 1 {
 				continue
 			}
 			if len(v.Db) == 0 || v.Db == db {
-				fmt.Println("getSessionBindSql:",v.BindSql)
 				hintedNode = v.ast
 			}
 		}
@@ -305,7 +301,6 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 					continue
 				}
 				if len(v.Db) == 0 || v.Db == db {
-					fmt.Println("getGlobalBindSql:",v.BindSql)
 					hintedNode = v.ast
 				}
 			}

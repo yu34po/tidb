@@ -1,4 +1,4 @@
-package infobind
+package infobind_test
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"github.com/pingcap/tidb/util/testleak"
 	"os"
 	"testing"
+	"time"
 )
 
 // TestLeakCheckCnt is the check count in the pacakge of executor.
@@ -105,6 +106,7 @@ func (s *testSuite) TestGlobalBinding(c *C) {
 	c.Assert(err, IsNil, Commentf("err %v", err))
 	r, err = tk.Exec("create global binding for select * from t using select * from t use index for join(index_t)")
 	c.Assert(err, NotNil)
+	time.Sleep(6 * time.Second)
 	r, err = tk.Exec("show  global bindings")
 
 	ctx := context.Background()
@@ -112,21 +114,26 @@ func (s *testSuite) TestGlobalBinding(c *C) {
 	err = r.Next(ctx, chk)
 	c.Assert(err, IsNil)
 	row := chk.GetRow(0)
-	c.Assert(row.Len(), Equals, 1)
+	c.Assert(row.Len(), Equals, 6)
 	c.Assert(row.GetString(0), Equals, "select * from t")
 	c.Assert(row.GetString(1), Equals, "select * from t use index for join(index_t)")
 	c.Assert(row.GetString(2), Equals, "test")
-	c.Assert(row.GetInt64(3), Equals, 1)
+	var i int64 = 1
+	c.Assert(row.GetInt64(3), Equals, i)
 	c.Assert(row.GetDatum(4, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 	c.Assert(row.GetDatum(5, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 
 	tk.MustExec("DROP global binding for select * from t")
+	time.Sleep(6 * time.Second)
 	r, err = tk.Exec("show  global bindings")
 	chk = r.NewChunk()
 	err = r.Next(ctx, chk)
 	c.Assert(chk.NumRows(), Equals, 0)
 	r, err = tk.Exec("create global binding for select * from t using select * from t use index for join(index_t)")
 	c.Assert(err, IsNil)
+
+	tk.MustExec("DROP global binding for select * from t")
+	time.Sleep(6 * time.Second)
 }
 
 func (s *testSuite) TestSessionBinding(c *C) {
@@ -141,6 +148,7 @@ func (s *testSuite) TestSessionBinding(c *C) {
 	c.Assert(err, IsNil, Commentf("err %v", err))
 	r, err = tk.Exec("create session binding for select * from t using select * from t use index for join(index_t)")
 	c.Assert(err, NotNil)
+	time.Sleep(6 * time.Second)
 	r, err = tk.Exec("show session bindings")
 
 	ctx := context.Background()
@@ -148,21 +156,26 @@ func (s *testSuite) TestSessionBinding(c *C) {
 	err = r.Next(ctx, chk)
 	c.Assert(err, IsNil)
 	row := chk.GetRow(0)
-	c.Assert(row.Len(), Equals, 1)
+	c.Assert(row.Len(), Equals, 6)
 	c.Assert(row.GetString(0), Equals, "select * from t")
 	c.Assert(row.GetString(1), Equals, "select * from t use index for join(index_t)")
 	c.Assert(row.GetString(2), Equals, "test")
-	c.Assert(row.GetInt64(3), Equals, 1)
+	var i int64 = 1
+	c.Assert(row.GetInt64(3), Equals, i)
 	c.Assert(row.GetDatum(4, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 	c.Assert(row.GetDatum(5, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 
-	tk.MustExec("DROP global binding for select * from t")
+	tk.MustExec("DROP session binding for select * from t")
+	time.Sleep(6 * time.Second)
 	r, err = tk.Exec("show session bindings")
 	chk = r.NewChunk()
 	err = r.Next(ctx, chk)
 	c.Assert(chk.NumRows(), Equals, 0)
 	r, err = tk.Exec("create global binding for select * from t using select * from t use index for join(index_t)")
 	c.Assert(err, IsNil)
+
+	tk.MustExec("DROP global binding for select * from t")
+	time.Sleep(6 * time.Second)
 }
 
 func (s *testSuite) TestFullTableSqlBinding(c *C) {
@@ -176,19 +189,25 @@ func (s *testSuite) TestFullTableSqlBinding(c *C) {
 	r, err := tk.Exec("create global binding for select * from test.t using select * from test.t use index for join(index_t)")
 	c.Assert(err, IsNil, Commentf("err %v", err))
 
+	time.Sleep(6 * time.Second)
+
+	r, err = tk.Exec("show  global bindings")
 	ctx := context.Background()
 	chk := r.NewChunk()
 	err = r.Next(ctx, chk)
 	c.Assert(err, IsNil)
 	row := chk.GetRow(0)
-	c.Assert(row.Len(), Equals, 1)
-	c.Assert(row.GetString(0), Equals, "select * from t")
-	c.Assert(row.GetString(1), Equals, "select * from t use index for join(index_t)")
+	c.Assert(row.Len(), Equals, 6)
+	c.Assert(row.GetString(0), Equals, "select * from test.t")
+	c.Assert(row.GetString(1), Equals, "select * from test.t use index for join(index_t)")
 	c.Assert(row.GetString(2), Equals, "")
-	c.Assert(row.GetInt64(3), Equals, 1)
+	var i int64 = 1
+	c.Assert(row.GetInt64(3), Equals, i)
 	c.Assert(row.GetDatum(4, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 	c.Assert(row.GetDatum(5, types.NewFieldType(mysql.TypeTimestamp)), NotNil)
 
+	tk.MustExec("DROP global binding for select * from test.t")
+	time.Sleep(6 * time.Second)
 }
 
 func (s *testSuite) TestErorBinding(c *C) {

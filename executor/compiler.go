@@ -82,9 +82,17 @@ func (c *Compiler) Compile(ctx context.Context, stmtNode ast.StmtNode) (*ExecStm
 	if needDefaultDb {
 		switch x := finalPlan.(type) {
 		case *plannercore.CreateBindPlan:
-			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+			if c.Ctx.GetSessionVars().CurrentDB != "" {
+				x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+			} else {
+				err = errors.Trace(plannercore.ErrNoDB)
+			}
 		case *plannercore.DropBindPlan:
-			x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+			if c.Ctx.GetSessionVars().CurrentDB != "" {
+				x.DefaultDb = c.Ctx.GetSessionVars().CurrentDB
+			} else {
+				err = errors.Trace(plannercore.ErrNoDB)
+			}
 		}
 	}
 
