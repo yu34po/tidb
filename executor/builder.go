@@ -195,11 +195,14 @@ func (b *executorBuilder) buildCreateBind(v *plannercore.CreateBindPlan) Executo
 	base := newBaseExecutor(b.ctx, v.Schema(), v.ExplainID())
 	base.initCap = chunk.ZeroCapacity
 
+	charset, collation := b.ctx.GetSessionVars().GetCharsetInfo()
 	e := &CreateBindExec{
 		baseExecutor: base,
 		originSql:    v.OriginSql,
 		bindSql:      v.BindSql,
 		defaultDb:    v.DefaultDb,
+		charset:	charset,
+		collation:  collation,
 		isGlobal:     v.IsGlobal,
 		bindAst:      v.BindStmt,
 	}

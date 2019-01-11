@@ -187,6 +187,8 @@ github.com/zhaoxiaojie0415/parser v0.0.0-20181229071342-23e744676157 h1:TL9l+JTi
 github.com/zhaoxiaojie0415/parser v0.0.0-20181229071342-23e744676157/go.mod h1:cFzMp88tsCE3mZ1QXUC7HK6VwuRnW5rhI8/YEpwia+A=
 github.com/zhaoxiaojie0415/parser v0.0.0-20190108094235-1996cb1c5656 h1:6Nv2ukhd+VjKjxPRsWG6GEfyuKBnpnEnbONdhRdBQ3U=
 github.com/zhaoxiaojie0415/parser v0.0.0-20190108094235-1996cb1c5656/go.mod h1:cFzMp88tsCE3mZ1QXUC7HK6VwuRnW5rhI8/YEpwia+A=
+github.com/zhaoxiaojie0415/parser v0.0.0-20190108104054-e9812f82e3f3 h1:GCsP4JQK781IVYYonFXvqbyuc+rL9hCHxwJGkH397mc=
+github.com/zhaoxiaojie0415/parser v0.0.0-20190108104054-e9812f82e3f3/go.mod h1:cFzMp88tsCE3mZ1QXUC7HK6VwuRnW5rhI8/YEpwia+A=
 github.com/zhaoxiaojie0415/tidb v2.0.8+incompatible h1:J56Pwckc3DP0RpZjX0thB0wtIs0SrpcLLoFqIhnavq8=
 github.com/zhaoxiaojie0415/tidb v2.0.8+incompatible/go.mod h1:HShX4cRuFBHAN3dhMs+TpBqcUQql8ytbtTbeeLR1JAY=
 go.uber.org/atomic v1.3.2 h1:2Oa65PReHzfn29GpvgsYwloV9AVFHPDk8tYxt2c2tr4=

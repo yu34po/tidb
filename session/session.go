@@ -839,7 +839,7 @@ func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
 	return errors.Trace(err)
 }
 
-func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string) (err error) {
+func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb string, charset string, collation string) (err error) {
 	ctx := context.Background()
 
 	_, err = s.Execute(ctx, "BEGIN")
@@ -885,8 +885,8 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		}
 	}
 
-	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status) VALUES ('%s', '%s', '%s', %d)`,
-		originSql, bindSql, defaultDb, 1)
+	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status,charset,collation) VALUES ('%s', '%s', '%s', %d, '%s', '%s')`,
+		originSql, bindSql, defaultDb, 1, charset, collation)
 	_, err = s.execute(ctx, sql)
 
 	return

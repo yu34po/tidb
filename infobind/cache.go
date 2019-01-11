@@ -43,6 +43,8 @@ type bindRecord struct {
 	Status      int64
 	CreateTime  types.Time
 	UpdateTime  types.Time
+	charset     string
+	collation	string
 }
 
 func NewHandle() *Handle {
@@ -128,8 +130,7 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	return nil
 }
 
-func parseSQL(sctx sessionctx.Context, parser *parser.Parser, sql string) ([]ast.StmtNode, []error, error) {
-	charset, collation := sctx.GetSessionVars().GetCharsetInfo()
+func parseSQL(sctx sessionctx.Context, parser *parser.Parser, sql string, charset string, collation string) ([]ast.StmtNode, []error, error) {
 	parser.SetSQLMode(sctx.GetSessionVars().SQLMode)
 	parser.EnableWindowFunc(sctx.GetSessionVars().EnableWindowFunction)
 	return parser.Parse(sql, charset, collation)
@@ -159,12 +160,24 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 			if err != nil {
 				return errors.Trace(err), value
 			}
+		case f.ColumnAsName.L == "charset":
+			var err error
+			value.charset = row.GetString(i)
+			if err != nil {
+				return errors.Trace(err), value
+			}
+		case f.ColumnAsName.L == "collation" :
+			var err error
+			value.collation = row.GetString(i)
+			if err != nil {
+				return errors.Trace(err), value
+			}
 		}
 	}
 	return nil, value
 }
 
-func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparser *parser.Parser) error {
+func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, parser *parser.Parser) error {
 	hash := parser.Digest(value.OriginalSql)
 	if value.Status == 0 {
 		if bindArr, ok := b.Cache[hash]; ok {
@@ -183,7 +196,7 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparse
 		return nil
 	}
 
-	stmtNodes, _, err := parseSQL(sctx, sparser, value.BindSql)
+	stmtNodes, _, err := parseSQL(sctx, parser, value.BindSql, value.charset, value.collation)
 	if err != nil {
 		log.Warnf("parse error:\n%v\n%s", err, value.BindSql)
 		return errors.Trace(err)

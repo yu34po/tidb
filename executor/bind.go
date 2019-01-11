@@ -30,6 +30,10 @@ type CreateBindExec struct {
 
 	defaultDb string
 
+	charset string
+
+	collation string
+
 	done bool
 
 	isGlobal bool
@@ -51,7 +55,7 @@ func (e *CreateBindExec) Next(ctx context.Context, chk *chunk.Chunk) error {
 	}
 
 	if e.isGlobal {
-		err := bm.AddGlobalBind(e.originSql, e.bindSql, e.defaultDb)
+		err := bm.AddGlobalBind(e.originSql, e.bindSql, e.defaultDb, e.charset, e.collation)
 		return errors.Trace(err)
 	}
 

@@ -43,7 +43,7 @@ type Manager interface {
 	GetAllSessionBindData() []*BindData
 	GetAllGlobalBindData() []*BindData
 	AddSessionBind(originSql, bindSql, defaultDb string, bindAst ast.StmtNode) error
-	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
+	AddGlobalBind(originSql, bindSql, defaultDb, charset, collation string) error
 	RemoveSessionBind(originSql string, defaultDb string) error
 	RemoveGlobalBind(originSql string, defaultDb string) error
 }
@@ -372,8 +372,8 @@ func (b *BindManager) AddSessionBind(originSql, bindSql, defaultDb string, bindA
 	return nil
 }
 
-func (b *BindManager) AddGlobalBind(originSql string, bindSql string, defaultDb string) error {
-	return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb)
+func (b *BindManager) AddGlobalBind(originSql, bindSql, defaultDb, charset, collation string) error {
+	return b.GlobalBindAccessor.AddGlobalBind(originSql, bindSql, defaultDb, charset, collation)
 }
 
 func (b *BindManager) RemoveSessionBind(originSql string, defaultDb string) error {
@@ -425,5 +425,5 @@ func (b *BindManager) GetAllGlobalBindData() []*BindData {
 
 type GlobalBindAccessor interface {
 	DropGlobalBind(originSql string, defaultDb string) error
-	AddGlobalBind(originSql string, bindSql string, defaultDb string) error
+	AddGlobalBind(originSql string, bindSql string, defaultDb string, charset string, collation string) error
 }
