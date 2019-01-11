@@ -1992,10 +1992,6 @@ func (b *PlanBuilder) buildDataSource(tn *ast.TableName) (LogicalPlan, error) {
 		return b.BuildDataSourceFromView(dbName, tableInfo)
 	}
 
-	if tableInfo.IsView() {
-		return b.buildDataSourceFromView(dbName, tableInfo)
-	}
-
 	if tableInfo.GetPartitionInfo() != nil {
 		b.optFlag = b.optFlag | flagPartitionProcessor
 	}

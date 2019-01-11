@@ -99,6 +99,7 @@ func rollingbackAddColumn(t *meta.Meta, job *model.Job) (ver int64, err error) {
 }
 
 func rollingbackDropColumn(t *meta.Meta, job *model.Job) (ver int64, err error) {
+	tblInfo, colInfo, err := checkDropColumn(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
 	}
