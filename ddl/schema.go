@@ -71,13 +71,9 @@ func onCreateSchema(t *meta.Meta, job *model.Job) (ver int64, _ error) {
 }
 
 func onDropSchema(t *meta.Meta, job *model.Job) (ver int64, _ error) {
-	dbInfo, err := t.GetDatabase(job.SchemaID)
+	dbInfo, err := checkDropSchema(t, job)
 	if err != nil {
 		return ver, errors.Trace(err)
-	}
-	if dbInfo == nil {
-		job.State = model.JobStateCancelled
-		return ver, infoschema.ErrDatabaseDropExists.GenWithStackByArgs("")
 	}
 
 	if job.IsRollingback() {
@@ -132,6 +128,18 @@ func onDropSchema(t *meta.Meta, job *model.Job) (ver int64, _ error) {
 	}
 
 	return ver, errors.Trace(err)
+}
+
+func checkDropSchema(t *meta.Meta, job *model.Job) (*model.DBInfo, error) {
+	dbInfo, err := t.GetDatabase(job.SchemaID)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if dbInfo == nil {
+		job.State = model.JobStateCancelled
+		return nil, infoschema.ErrDatabaseDropExists.GenWithStackByArgs("")
+	}
+	return dbInfo, nil
 }
 
 func getIDs(tables []*model.TableInfo) []int64 {
