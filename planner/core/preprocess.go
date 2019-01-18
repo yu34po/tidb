@@ -395,6 +395,680 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 		p.err = errors.New("bind sql not equals origin sql expect hint")
 		return
 	}
+
+/*	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
+
+	if !ok {
+		if err == nil {
+			errMsg := fmt.Sprintf("origin sql %s not equals bind sql %s ", originSelectStmt.Text(), hintedSelectStmt.Text())
+			err = errors.New(errMsg)
+		}
+		p.err = err
+	}*/
+}
+
+func (p *preprocessor) tableRefsClauseBindCheck(originalNode, hintedNode *ast.TableRefsClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.joinBindCheck(originalNode.TableRefs, hintedNode.TableRefs)
+}
+
+func (p *preprocessor) tableRefsBindCheck(originalNode, hintedNode *ast.Join) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+	ok, err := p.resultSetNodeBindCheck(originalNode.Left, hintedNode.Left)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.resultSetNodeBindCheck(originalNode.Right, hintedNode.Right)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.Tp != hintedNode.Tp {
+		return false, nil
+	}
+
+	ok, err = p.onConditionBindCheck(originalNode.On, hintedNode.On)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.columnNameBindCheck(originalNode.Using, hintedNode.Using)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.NaturalJoin != hintedNode.NaturalJoin {
+		return false, nil
+	}
+
+	if originalNode.StraightJoin != hintedNode.StraightJoin {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) columnNameBindCheck(originNodeArr,hintedNodeArr []*ast.ColumnName) (bool, error) {
+	if (originNodeArr == nil && hintedNodeArr != nil) || (originNodeArr != nil && hintedNodeArr == nil) {
+		return false, nil
+	}
+
+	if len(originNodeArr) != len(hintedNodeArr) {
+		return false, nil
+	}
+
+	for idx, originNode := range originNodeArr {
+		hintedNode := hintedNodeArr[idx]
+
+		ok, err := p.cistrBindCheck(originNode.Name , hintedNode.Name)
+		if !ok {
+			return ok,err
+		}
+
+		ok, err = p.cistrBindCheck(originNode.Schema, hintedNode.Schema)
+		if !ok {
+			return ok, err
+		}
+
+		ok, err = p.cistrBindCheck(originNode.Table, hintedNode.Table)
+		if !ok {
+			return ok, err
+		}
+	}
+
+	return true,nil
+}
+
+func (p *preprocessor) joinBindCheck(originalNode, hintedNode *ast.Join) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	ok, err := p.resultSetNodeBindCheck(originalNode.Left, hintedNode.Left)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.resultSetNodeBindCheck(originalNode.Right, hintedNode.Right)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.Tp != hintedNode.Tp {
+		return false, nil
+	}
+
+	ok, err = p.onConditionBindCheck(originalNode.On, hintedNode.On)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.columnNameBindCheck(originalNode.Using, hintedNode.Using)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.NaturalJoin != hintedNode.NaturalJoin {
+		return false, nil
+	}
+
+	if originalNode.StraightJoin != hintedNode.StraightJoin {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) onConditionBindCheck(originalNode, hintedNode *ast.OnCondition) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
+}
+
+func (p *preprocessor) unionSelectListBindCheck(originalNode, hintedNode *ast.UnionSelectList) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.selectsStmtBindCheck(originalNode.Selects, hintedNode.Selects)
+}
+
+func (p *preprocessor) selectsStmtBindCheck(originNodeArr, hintedNodeArr []*ast.SelectStmt) (bool, error) {
+	if (originNodeArr == nil && hintedNodeArr != nil) || (originNodeArr != nil && hintedNodeArr == nil) {
+		return false, nil
+	}
+
+	if len(originNodeArr) != len(hintedNodeArr) {
+		return false, nil
+	}
+
+	for idx,originNode := range originNodeArr {
+		hintedNode := hintedNodeArr[idx]
+
+		ok, err := p.selectBindCheck(originNode, hintedNode)
+		if !ok {
+			return ok, err
+		}
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) unionStmtBindCheck(originalNode, hintedNode *ast.UnionStmt) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	ok, err := p.unionSelectListBindCheck(originalNode.SelectList, hintedNode.SelectList)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.orderByBindCheck(originalNode.OrderBy, hintedNode.OrderBy)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.limitBindCheck(originalNode.Limit, hintedNode.Limit)
+	if !ok {
+		return ok, err
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) tableNameBindCheck(originalNode, hintedNode *ast.TableName) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	ok, err := p.cistrBindCheck(originalNode.Schema, hintedNode.Schema)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.cistrBindCheck(originalNode.Name, hintedNode.Name)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.dbInfoBindCheck(originalNode.DBInfo, hintedNode.DBInfo)
+	if !ok {
+		return ok, err
+	}
+
+	return p.tableInfoBindCheck(originalNode.TableInfo, hintedNode.TableInfo)
+}
+
+func (p *preprocessor) dbInfoBindCheck(originNode, hintedNode *model.DBInfo) (bool, error) {
+	if (originNode == nil && hintedNode != nil) || (originNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originNode.ID != hintedNode.ID {
+		return false,nil
+	}
+
+	ok, err := p.cistrBindCheck(originNode.Name, hintedNode.Name)
+	if !ok {
+		return ok, err
+	}
+
+	if originNode.Charset != hintedNode.Charset {
+		return false, nil
+	}
+
+	if originNode.Collate != hintedNode.Collate {
+		return false, nil
+	}
+
+	if originNode.State != hintedNode.State {
+		return false, nil
+	}
+
+	return p.tableInfosBindCheck(originNode.Tables, hintedNode.Tables)
+}
+
+func (p *preprocessor) tableInfosBindCheck(originNodeArr, hintedNodeArr []*model.TableInfo) (bool, error) {
+	if (originNodeArr == nil && hintedNodeArr != nil) || (originNodeArr != nil && hintedNodeArr == nil) {
+		return false, nil
+	}
+
+	if len(originNodeArr) != len(hintedNodeArr) {
+		return false, nil
+	}
+
+	for idx,originNode := range originNodeArr {
+		hintedNode := hintedNodeArr[idx]
+
+		ok, err := p.tableInfoBindCheck(originNode, hintedNode)
+		if !ok{
+			return ok, err
+		}
+	}
+
+	return true, nil
+}
+
+//tableInfoBindCheck only check originNode's id is equals with hintedNode's id
+func (p *preprocessor) tableInfoBindCheck(originNode, hintedNode *model.TableInfo) (bool, error) {
+	if (originNode == nil && hintedNode != nil) || (originNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originNode.ID != hintedNode.ID {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) resultSetNodeBindCheck(originalNode, hintedNode ast.ResultSetNode) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	switch x := originalNode.(type) {
+	case *ast.Join:
+		join, iok := hintedNode.(*ast.Join)
+		if !iok {
+			return false, nil
+		}
+
+		return p.joinBindCheck(x, join)
+	case *ast.TableSource:
+		ts, iok := hintedNode.(*ast.TableSource)
+		if !iok {
+			return false, nil
+		}
+
+		switch v := x.Source.(type) {
+		case *ast.SelectStmt:
+			if value, iok := ts.Source.(*ast.SelectStmt); iok {
+				return p.selectBindCheck(v, value)
+			}
+		case *ast.UnionStmt:
+			if value, iok := ts.Source.(*ast.UnionStmt); iok {
+				return p.unionStmtBindCheck(v, value)
+			}
+		case *ast.TableName:
+			if value, iok := ts.Source.(*ast.TableName); iok {
+				return p.tableNameBindCheck(v, value)
+			}
+		}
+
+		return false, nil
+	case *ast.SelectStmt:
+		if sel, iok := hintedNode.(*ast.SelectStmt); iok {
+			return p.selectBindCheck(x, sel)
+		}
+	case *ast.UnionStmt:
+		union, iok := hintedNode.(*ast.UnionStmt)
+		if !iok {
+			return false, nil
+		}
+		return p.unionStmtBindCheck(x, union)
+	}
+
+	return false, nil
+}
+
+func (p *preprocessor) exprNodeBindCheck(originalNode, hintedNode ast.ExprNode) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	//todo 太多了
+
+	return true, nil
+}
+func (p *preprocessor) selectBindCheck(originalNode, hintedNode *ast.SelectStmt) (bool, error) {
+	if originalNode.Distinct != hintedNode.Distinct {
+		return false, nil
+	}
+
+	if originalNode.SQLCache != hintedNode.SQLCache {
+		return false, nil
+	}
+
+	if originalNode.CalcFoundRows != hintedNode.CalcFoundRows {
+		return false, nil
+	}
+
+	if originalNode.StraightJoin != hintedNode.StraightJoin {
+		return false, nil
+	}
+
+	if originalNode.Priority != hintedNode.Priority {
+		return false, nil
+	}
+
+	if originalNode.IsAfterUnionDistinct != hintedNode.IsAfterUnionDistinct {
+		return false, nil
+	}
+
+	if originalNode.IsInBraces != hintedNode.IsInBraces {
+		return false, nil
+	}
+
+	ok, err := p.tableRefsClauseBindCheck(originalNode.From, hintedNode.From)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.exprNodeBindCheck(originalNode.Where, hintedNode.Where)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.fieldsBindCheck(originalNode.Fields, hintedNode.Fields)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.groupByBindCheck(originalNode.GroupBy, hintedNode.GroupBy)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.havingBindCheck(originalNode.Having, hintedNode.Having)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.windowSpecsBindCheck(originalNode.WindowSpecs, hintedNode.WindowSpecs)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.orderByBindCheck(originalNode.OrderBy, hintedNode.OrderBy)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.limitBindCheck(originalNode.Limit, hintedNode.Limit)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.LockTp != hintedNode.LockTp {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) limitBindCheck(originalNode, hintedNode *ast.Limit) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	ok, err := p.exprNodeBindCheck(originalNode.Count, hintedNode.Count)
+	if !ok {
+		return ok, err
+	}
+
+	return p.exprNodeBindCheck(originalNode.Offset, hintedNode.Offset)
+}
+
+func (p *preprocessor) orderByBindCheck(originalNode, hintedNode *ast.OrderByClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originalNode.ForUnion != hintedNode.ForUnion {
+		return false, nil
+	}
+
+	return p.itemsBindCheck(originalNode.Items, hintedNode.Items)
+}
+
+func (p *preprocessor) windowSpecsBindCheck(originalNodeArr, hintedNodeArr []ast.WindowSpec) (bool, error) {
+	if (originalNodeArr == nil && hintedNodeArr != nil) || (originalNodeArr != nil && hintedNodeArr == nil) {
+		return false, nil
+	}
+
+	if len(originalNodeArr) != len(hintedNodeArr) {
+		return false, nil
+	}
+
+	for idx,originNode := range originalNodeArr {
+		hintedNode := hintedNodeArr[idx]
+
+		ok, err := p.cistrBindCheck(originNode.Name , hintedNode.Name)
+		if !ok {
+			return ok, err
+		}
+
+		ok, err = p.cistrBindCheck(originNode.Ref , hintedNode.Ref)
+		if !ok {
+			return ok, err
+		}
+
+		ok, err = p.partitionByClauseBindCheck(originNode.PartitionBy, hintedNode.PartitionBy)
+		if !ok {
+			return ok, err
+		}
+
+		ok, err = p.orderByClauseBindCheck(originNode.OrderBy, hintedNode.OrderBy)
+		if !ok {
+			return ok, err
+		}
+
+		ok,err = p.frameClauseBindCheck(originNode.Frame, hintedNode.Frame)
+		if !ok {
+			return ok, err
+		}
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) frameClauseBindCheck(originalNode, hintedNode *ast.FrameClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originalNode.Type != hintedNode.Type {
+		return false, nil
+	}
+
+	return p.frameExtentBindCheck(originalNode.Extent, hintedNode.Extent)
+}
+
+func (p *preprocessor) frameExtentBindCheck(originNode,hintedNode ast.FrameExtent) (bool, error) {
+	ok, err := p.frameBoundBindCheck(originNode.Start, hintedNode.Start)
+	if !ok {
+		return ok, err
+	}
+
+	return p.frameBoundBindCheck(originNode.End, hintedNode.End)
+}
+
+func (p *preprocessor) frameBoundBindCheck(originNode, hintedNode ast.FrameBound) (bool, error) {
+	if originNode.Type != hintedNode.Type {
+		return false, nil
+	}
+
+	if originNode.UnBounded != hintedNode.UnBounded {
+		return false, nil
+	}
+
+	ok, err := p.exprNodeBindCheck(originNode.Expr, hintedNode.Expr)
+	if !ok {
+		return ok, err
+	}
+
+	return p.exprNodeBindCheck(originNode.Unit , hintedNode.Unit)
+}
+
+func (p *preprocessor) orderByClauseBindCheck(originalNode, hintedNode *ast.OrderByClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originalNode.ForUnion != hintedNode.ForUnion {
+		return false, nil
+	}
+
+	if len(originalNode.Items) != len(hintedNode.Items) {
+		return false, nil
+	}
+
+	return p.itemsBindCheck(originalNode.Items , hintedNode.Items)
+}
+
+func (p *preprocessor) partitionByClauseBindCheck(originalNode, hintedNode *ast.PartitionByClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.itemsBindCheck(originalNode.Items , hintedNode.Items)
+}
+
+func (p *preprocessor) havingBindCheck(originalNode, hintedNode *ast.HavingClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
+}
+
+func (p *preprocessor) groupByBindCheck(originalNode, hintedNode *ast.GroupByClause) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	return p.itemsBindCheck(originalNode.Items, hintedNode.Items)
+}
+
+func (p *preprocessor) itemBindCheck(originalNode, hintedNode *ast.ByItem) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originalNode.Desc != hintedNode.Desc {
+		return false, nil
+	}
+
+	return p.exprNodeBindCheck(originalNode.Expr, hintedNode.Expr)
+}
+
+func (p *preprocessor) itemsBindCheck(originalNode, hintedNode []*ast.ByItem) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if len(originalNode) != len(hintedNode) {
+		return false, nil
+	}
+
+	for pos, item := range originalNode {
+		ok, err := p.itemBindCheck(item, hintedNode[pos])
+		if !ok {
+			return ok, err
+		}
+	}
+	return true, nil
+}
+
+func (p *preprocessor) fieldsBindCheck(originalNode, hintedNode *ast.FieldList) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if len(originalNode.Fields) != len(hintedNode.Fields) {
+		return false, nil
+	}
+
+	for pos, field := range originalNode.Fields {
+		hintedNodeField := hintedNode.Fields[pos]
+
+		ok, err := p.selectFieldCheck(field, hintedNodeField)
+
+		if !ok {
+			return ok, err
+		}
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) selectFieldCheck(originalNode, hintedNode *ast.SelectField) (bool, error) {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false, nil
+	}
+
+	if originalNode.Offset != hintedNode.Offset {
+		return false , nil
+	}
+
+	ok, err := p.wildCardFieldBindCheck(originalNode.WildCard, hintedNode.WildCard)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.exprNodeBindCheck(originalNode.Expr , hintedNode.Expr)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.cistrBindCheck(originalNode.AsName , hintedNode.AsName)
+	if !ok {
+		return ok, err
+	}
+
+	if originalNode.Auxiliary != hintedNode.Auxiliary {
+		return false , nil
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) wildCardFieldBindCheck(originNode,hintedNode *ast.WildCardField) (bool, error) {
+	if !p.checkEquals(originNode , hintedNode) {
+		return false , nil
+	}
+
+	ok, err := p.cistrBindCheck(originNode.Table , hintedNode.Schema)
+	if !ok {
+		return ok, err
+	}
+
+	ok, err = p.cistrBindCheck(originNode.Schema, hintedNode.Schema)
+	if !ok {
+		return ok, err
+	}
+
+	return true, nil
+}
+
+func (p *preprocessor) cistrBindCheck(originNode,hintedNode model.CIStr) (bool, error) {
+	if originNode.L != hintedNode.L {
+		return false, nil
+	}
+
+	if originNode.O != hintedNode.O {
+		return false, nil
+	}
+
+	return true,nil
+}
+
+func (p *preprocessor) checkEquals(originalNode,hintedNode ast.Node) bool {
+	if (originalNode == nil && hintedNode != nil) || (originalNode != nil && hintedNode == nil) {
+		return false
+	}
+
+	return true
 }
 
 func isTableAliasDuplicate(node ast.ResultSetNode, tableAliases map[string]interface{}) error {

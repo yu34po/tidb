@@ -74,6 +74,7 @@ require (
 	github.com/ugorji/go/codec v0.0.0-20181127175209-856da096dbdf // indirect
 	github.com/unrolled/render v0.0.0-20180914162206-b9786414de4d // indirect
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
+	github.com/zhaoxiaojie0415/parser v0.0.0-20190108104054-e9812f82e3f3 // indirect
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1 // indirect

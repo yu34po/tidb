@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/pingcap/tidb/store/tikv/oracle"
 	"net"
 	"strconv"
 	"strings"
@@ -853,8 +854,9 @@ func (s *session) SetGlobalSysVar(name, value string) error {
 }
 
 func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
-	sql := fmt.Sprintf(`UPDATE mysql.bind_info SET status=%d WHERE original_sql='%s' and default_db='%s';`,
-		0, originSql, defaultDb)
+	ts := oracle.GetTimeFromTS(s.txn.StartTS())
+	sql := fmt.Sprintf(`UPDATE mysql.bind_info SET status=%d,update_time='%s' WHERE original_sql='%s' and default_db='%s';`,
+		0, originSql, ts, defaultDb)
 	_, _, err := s.ExecRestrictedSQL(s, sql)
 	return errors.Trace(err)
 }
@@ -905,8 +907,9 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		}
 	}
 
-	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status,charset,collation) VALUES ('%s', '%s', '%s', %d, '%s', '%s')`,
-		originSql, bindSql, defaultDb, 1, charset, collation)
+	ts := oracle.GetTimeFromTS(s.txn.StartTS())
+	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status,create_time,update_time,charset,collation) VALUES ('%s', '%s', '%s', %d, '%s', '%s','%s', '%s')`,
+		originSql, bindSql, defaultDb, 1, ts, ts, charset, collation)
 	_, err = s.execute(ctx, sql)
 
 	return

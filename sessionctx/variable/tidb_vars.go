@@ -175,6 +175,9 @@ const (
 	// TiDBMaxChunkSize is used to control the max chunk size during query execution.
 	TiDBMaxChunkSize = "tidb_max_chunk_size"
 
+	//TidbBindLoadInterval is uesd to control tidb load bind info interval(second)
+	TidbBindLoadInterval = "tidb_bind_load_interval"
+
 	// TiDBInitChunkSize is used to control the init chunk size during query execution.
 	TiDBInitChunkSize = "tidb_init_chunk_size"
 

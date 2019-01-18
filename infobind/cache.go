@@ -177,7 +177,7 @@ func decodeBindTableRow(row chunk.Row, fs []*ast.ResultField) (error, bindRecord
 	return nil, value
 }
 
-func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, parser *parser.Parser) error {
+func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, sparser *parser.Parser) error {
 	hash := parser.Digest(value.OriginalSql)
 	if value.Status == 0 {
 		if bindArr, ok := b.Cache[hash]; ok {
@@ -196,7 +196,7 @@ func (b *BindCache) appendNode(sctx sessionctx.Context, value bindRecord, parser
 		return nil
 	}
 
-	stmtNodes, _, err := parseSQL(sctx, parser, value.BindSql, value.charset, value.collation)
+	stmtNodes, _, err := parseSQL(sctx, sparser, value.BindSql, value.charset, value.collation)
 	if err != nil {
 		log.Warnf("parse error:\n%v\n%s", err, value.BindSql)
 		return errors.Trace(err)
