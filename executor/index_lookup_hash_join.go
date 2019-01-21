@@ -6,6 +6,8 @@ import (
 	"unsafe"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/parser/terror"
+	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/codec"
@@ -248,21 +250,46 @@ func (iw *innerHashWorker) getNewJoinResult() (bool, *indexLookUpResult) {
 	}
 	return ok, joinResult
 }
+
 func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask, joinResult *indexLookUpResult) error {
 	dLookUpKeys, err := iw.constructDatumLookupKeys(task)
 	if err != nil {
 		return errors.Trace(err)
 	}
-
-	err = iw.fetchInnerResults(ctx, task, dLookUpKeys)
+	err = iw.fetchAndJoin(ctx, task, dLookUpKeys, joinResult)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	var ok bool
-	ok, joinResult = iw.join2Chunk(joinResult, task)
-	if !ok {
-		return errors.New("join2Chunk failed")
+	return nil
+}
+
+func (iw *innerHashWorker) fetchAndJoin(ctx context.Context, task *lookUpJoinTask, dLookUpKeys [][]types.Datum, joinResult *indexLookUpResult) error {
+	innerExec, err := iw.readerBuilder.buildExecutorForIndexJoin(ctx, dLookUpKeys, iw.indexRanges, iw.keyOff2IdxOff)
+	if err != nil {
+		return errors.Trace(err)
 	}
+	defer terror.Call(innerExec.Close)
+	innerResult := chunk.NewList(innerExec.retTypes(), iw.ctx.GetSessionVars().MaxChunkSize, iw.ctx.GetSessionVars().MaxChunkSize)
+	innerResult.GetMemTracker().SetLabel("inner result")
+	innerResult.GetMemTracker().AttachTo(task.memTracker)
+	iw.executorChk.Reset()
+	var ok bool
+	for {
+		err := innerExec.Next(ctx, chunk.NewRecordBatch(iw.executorChk))
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		if iw.executorChk.NumRows() == 0 {
+			break
+		}
+
+		ok, joinResult = iw.join2Chunk(iw.executorChk, joinResult, task)
+		if !ok {
+			return errors.New("join2Chunk failed")
+		}
+	}
+
 	it := task.lookupMap.NewIterator()
 	for key, rowPtr := it.Next(); key != nil; key, rowPtr = it.Next() {
 		iw.matchPtrBytes = task.matchKeyMap.Get(key, iw.matchPtrBytes[:0])
@@ -280,21 +307,16 @@ func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask,
 			}
 		}
 	}
-
 	return nil
-
 }
-func (iw *innerHashWorker) join2Chunk(joinResult *indexLookUpResult, task *lookUpJoinTask) (ok bool, _ *indexLookUpResult) {
 
-	for i := 0; i < task.innerResult.NumChunks(); i++ {
-		curChk := task.innerResult.GetChunk(i)
-		iter := chunk.NewIterator4Chunk(curChk)
-		for innerRow := iter.Begin(); innerRow != iter.End(); innerRow = iter.Next() {
-			ok, joinResult = iw.joinMatchInnerRow2Chunk(innerRow, task, joinResult)
-			if !ok {
-				return false, joinResult
-			}
+func (iw *innerHashWorker) join2Chunk(innerChk *chunk.Chunk, joinResult *indexLookUpResult, task *lookUpJoinTask) (ok bool, _ *indexLookUpResult) {
+	for i := 0; i < innerChk.NumRows(); i++ {
+		innerRow := innerChk.GetRow(i)
 
+		ok, joinResult = iw.joinMatchInnerRow2Chunk(innerRow, task, joinResult)
+		if !ok {
+			return false, joinResult
 		}
 	}
 	return true, joinResult
@@ -315,18 +337,17 @@ func (iw *innerHashWorker) joinMatchInnerRow2Chunk(innerRow chunk.Row, task *loo
 	if len(iw.matchPtrBytes) == 0 {
 		return true, joinResult
 	}
-	task.matchedInners = task.matchedInners[:0]
+
 	var matchedOuters []chunk.Row
 	for _, b := range iw.matchPtrBytes {
 		ptr := *(*uint32)(unsafe.Pointer(&b[0]))
 		matchedOuter := task.outerResult.GetRow(int(ptr))
 		matchedOuters = append(matchedOuters, matchedOuter)
 	}
-	innerIter := chunk.NewIterator4Slice([]chunk.Row{innerRow})
+	outerIter := chunk.NewIterator4Slice(matchedOuters)
 	hasMatch := false
-	for i := 0; i < len(matchedOuters); i++ {
-		innerIter.Begin()
-		matched, err := iw.joiner.tryToMatch(matchedOuters[i], innerIter, joinResult.chk)
+	for outerIter.Begin(); outerIter.Current() != outerIter.End(); {
+		matched, err := iw.joiner.tryToMatch(innerRow, outerIter, joinResult.chk)
 		if err != nil {
 			joinResult.err = errors.Trace(err)
 			return false, joinResult
