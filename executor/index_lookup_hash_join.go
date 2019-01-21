@@ -269,13 +269,12 @@ func (iw *innerHashWorker) fetchAndJoin(ctx context.Context, task *lookUpJoinTas
 		return errors.Trace(err)
 	}
 	defer terror.Call(innerExec.Close)
-	innerResult := chunk.NewList(innerExec.retTypes(), iw.ctx.GetSessionVars().MaxChunkSize, iw.ctx.GetSessionVars().MaxChunkSize)
-	innerResult.GetMemTracker().SetLabel("inner result")
-	innerResult.GetMemTracker().AttachTo(task.memTracker)
-	iw.executorChk.Reset()
+
 	var ok bool
+	recordBatch := chunk.NewRecordBatch(iw.executorChk)
 	for {
-		err := innerExec.Next(ctx, chunk.NewRecordBatch(iw.executorChk))
+		iw.executorChk.Reset()
+		err := innerExec.Next(ctx, recordBatch)
 		if err != nil {
 			return errors.Trace(err)
 		}
