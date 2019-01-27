@@ -119,14 +119,14 @@ func (h *HandleUpdater) Update(fullLoad bool) error {
 	} else {
 		sql = fmt.Sprintf("select * from mysql.bind_info where update_time > \"%s\"", h.LastUpdateTime.String())
 	}
-	log.Infof("sql %s", sql)
+//	log.Infof("sql %s", sql)
 	err = h.LoadDiff(sql, bc)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
 	h.bind.Store(bc)
-	bc.Display()
+//	bc.Display()
 	return nil
 }
 
