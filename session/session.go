@@ -18,6 +18,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -854,10 +855,21 @@ func (s *session) SetGlobalSysVar(name, value string) error {
 }
 
 func (s *session) DropGlobalBind(originSql string, defaultDb string) error {
+	_, errs := s.Txn(true)
+	if errs != nil {
+		return errors.Trace(errs)
+	}
+//	fmt.Println("before txn:", s.txn.StartTS())
 	ts := oracle.GetTimeFromTS(s.txn.StartTS())
+	originSql = getEscapeCharacter(originSql)
 	sql := fmt.Sprintf(`UPDATE mysql.bind_info SET status=%d,update_time='%s' WHERE original_sql='%s' and default_db='%s';`,
-		0, originSql, ts, defaultDb)
+		0, ts, originSql, defaultDb)
+
+//	fmt.Println("DropGlobalBind: sql" , sql)
 	_, _, err := s.ExecRestrictedSQL(s, sql)
+
+	s.txn.changeToInvalid()
+
 	return errors.Trace(err)
 }
 
@@ -872,14 +884,18 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 	defer func() {
 		if err == nil {
 			_, err = s.execute(ctx, "COMMIT")
+//			fmt.Println("after commit " , s.txn)
 		} else {
 			_, rbErr := s.execute(ctx, "ROLLBACK")
 			terror.Log(errors.Trace(rbErr))
 		}
 	}()
 
+	originSql = getEscapeCharacter(originSql)
+//	fmt.Println("after EscapeCharacter originSql:" , originSql)
 	sql := fmt.Sprintf("SELECT status FROM mysql.bind_info WHERE original_sql='%s' AND default_db='%s'",
 		originSql, defaultDb)
+//	fmt.Println("sql=" , sql)
 	recordSet, err := s.execute(ctx, sql)
 	if err != nil {
 		return
@@ -907,6 +923,8 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 		}
 	}
 
+	bindSql = getEscapeCharacter(bindSql)
+//	fmt.Println("after escapeCharacter bindSql:" , bindSql)
 	ts := oracle.GetTimeFromTS(s.txn.StartTS())
 	sql = fmt.Sprintf(`INSERT INTO mysql.bind_info(original_sql,bind_sql,default_db,status,create_time,update_time,charset,collation) VALUES ('%s', '%s', '%s', %d, '%s', '%s','%s', '%s')`,
 		originSql, bindSql, defaultDb, 1, ts, ts, charset, collation)
@@ -914,6 +932,21 @@ func (s *session) AddGlobalBind(originSql string, bindSql string, defaultDb stri
 
 	return
 }
+
+func getEscapeCharacter(str string) string {
+	var buffer bytes.Buffer
+	for _, v := range str {
+		if v == '\'' || v == '"' || v == '\\' {
+			buffer.WriteString("\\")
+		}
+
+		buffer.WriteString(string(v))
+	}
+
+
+	return buffer.String()
+}
+
 
 func (s *session) ParseSQL(ctx context.Context, sql, charset, collation string) ([]ast.StmtNode, []error, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
@@ -987,7 +1020,6 @@ func (s *session) execute(ctx context.Context, sql string) (recordSets []sqlexec
 	}
 
 	charsetInfo, collation := s.sessionVars.GetCharsetInfo()
-
 	// Step1: Compile query string to abstract syntax trees(ASTs).
 	startTS := time.Now()
 	stmtNodes, warns, err := s.ParseSQL(ctx, sql, charsetInfo, collation)

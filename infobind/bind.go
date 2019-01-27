@@ -156,7 +156,7 @@ func (b *BindManager) dataSourceBind(originalNode, hintedNode *ast.TableName) er
 		return errors.New(errMsg)
 	}
 	if b.copy {
-		originalNode.IndexHints = append(originalNode.IndexHints, hintedNode.IndexHints...)
+		originalNode.IndexHints = hintedNode.IndexHints
 	} else {
 		originalNode.IndexHints = nil
 	}
@@ -235,7 +235,7 @@ func (b *BindManager) selectionBind(where ast.ExprNode, hintedWhere ast.ExprNode
 func (b *BindManager) selectBind(originalNode, hintedNode *ast.SelectStmt) error {
 	if hintedNode.TableHints != nil {
 		if b.copy {
-			originalNode.TableHints = append(originalNode.TableHints, hintedNode.TableHints...)
+			originalNode.TableHints = hintedNode.TableHints
 		} else {
 			originalNode.TableHints = nil
 		}
@@ -307,7 +307,7 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 		}
 
 		if hintedNode == nil {
-			log.Warnf("sql %s try match hint failed", sql)
+//			log.Warnf("sql %s try match hint failed due empty", sql)
 			return
 		}
 	}
@@ -320,10 +320,10 @@ func (b *BindManager) MatchHint(originalNode ast.Node, is infoschema.InfoSchema,
 		b.copy = false
 		b.doTravel(originalNode, hintedNode)
 		b.deleteBind(hash, db)
-		log.Warnf("sql %s try match hint failed %v", sql, err)
+//		log.Warnf("sql %s try match hint failed %v", sql, err)
 
 	}
-	log.Warnf("sql %s try match hint success", sql)
+//	log.Warnf("sql %s try match hint success", sql)
 
 	return
 }
