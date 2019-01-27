@@ -383,7 +383,7 @@ func trimHint(str string) string {
 }
 
 func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt) {
-	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
+/*	originSelectStmt := createBindingStmt.OriginSel.(*ast.SelectStmt)
 	hintedSelectStmt := createBindingStmt.HintedSel.(*ast.SelectStmt)
 
 	originalSql := trimHint(originSelectStmt.Text())
@@ -394,7 +394,7 @@ func (p *preprocessor) checkBindGrammar(createBindingStmt *ast.CreateBindingStmt
 	if originalSql != hintedSql {
 		p.err = errors.New("bind sql not equals origin sql expect hint")
 		return
-	}
+	}*/
 
 /*	ok, err := p.selectBindCheck(originSelectStmt, hintedSelectStmt)
 
