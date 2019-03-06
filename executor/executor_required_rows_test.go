@@ -291,7 +291,7 @@ func (s *testExecSuite) TestTopNRequiredRows(c *C) {
 			groupBy:        []int{0},
 			requiredRows:   []int{1, 1, 1, 1, 10},
 			expectedRows:   []int{1, 1, 1, 1, 6},
-			expectedRowsDS: []int{10, 0},
+			expectedRowsDS: []int{10, 0, 0},
 		},
 		{
 			totalRows:      100,
@@ -300,7 +300,7 @@ func (s *testExecSuite) TestTopNRequiredRows(c *C) {
 			groupBy:        []int{0},
 			requiredRows:   []int{1, 1, 1, 1, 10},
 			expectedRows:   []int{1, 1, 1, 1, 7},
-			expectedRowsDS: []int{26, 100 - 26, 0},
+			expectedRowsDS: []int{26, 26, 26, 100 - 26*3, 0, 0},
 		},
 		{
 			totalRows:      100,
@@ -318,7 +318,7 @@ func (s *testExecSuite) TestTopNRequiredRows(c *C) {
 			groupBy:        []int{0, 1},
 			requiredRows:   []int{1, 3, 7, 10},
 			expectedRows:   []int{1, 3, 1, 0},
-			expectedRowsDS: []int{6, maxChunkSize, 14, 0},
+			expectedRowsDS: []int{6, 6, 6, 6, maxChunkSize + 20 - 6*4, 0},
 		},
 		{
 			totalRows:      maxChunkSize + maxChunkSize + 20,
@@ -327,7 +327,7 @@ func (s *testExecSuite) TestTopNRequiredRows(c *C) {
 			groupBy:        []int{0, 1},
 			requiredRows:   []int{1, 2, 3, 5, 7},
 			expectedRows:   []int{1, 2, 3, 2, 0},
-			expectedRowsDS: []int{maxChunkSize, 18, maxChunkSize, 2, 0},
+			expectedRowsDS: []int{maxChunkSize, 18, maxChunkSize, 2, 0, 0},
 		},
 		{
 			totalRows:      maxChunkSize*5 + 10,
@@ -379,7 +379,7 @@ func buildTopNExec(ctx sessionctx.Context, offset, count int, byItems []*planner
 	}
 	return &TopNExec{
 		MergeSortExec: sortExec,
-		limit:    &plannercore.PhysicalLimit{Count: uint64(count), Offset: uint64(offset)},
+		limit:         &plannercore.PhysicalLimit{Count: uint64(count), Offset: uint64(offset)},
 	}
 }
 

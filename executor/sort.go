@@ -169,5 +169,3 @@ func (e *SortExec) keyColumnsLess(i, j int) bool {
 	rowJ := e.rowChunks.GetRow(e.rowPtrs[j])
 	return e.lessRow(rowI, rowJ)
 }
-
-

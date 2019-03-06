@@ -1164,7 +1164,7 @@ func (b *executorBuilder) buildTopN(v *plannercore.PhysicalTopN) Executor {
 	metrics.ExecutorCounter.WithLabelValues("TopNExec").Inc()
 	return &TopNExec{
 		MergeSortExec: sortExec,
-		limit:    &plannercore.PhysicalLimit{Count: v.Count, Offset: v.Offset},
+		limit:         &plannercore.PhysicalLimit{Count: v.Count, Offset: v.Offset},
 	}
 }
 

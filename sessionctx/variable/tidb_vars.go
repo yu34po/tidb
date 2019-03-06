@@ -285,7 +285,7 @@ const (
 	DefTiDBForcePriority             = mysql.NoPriority
 	DefTiDBUseRadixJoin              = false
 	DefEnableWindowFunction          = false
-	DefTiDBMergeSortConcurrency      = 8
+	DefTiDBMergeSortConcurrency      = 4
 )
 
 // Process global variables.

@@ -163,7 +163,7 @@ func (s *testSuite2) TestJoin(c *C) {
 	tk.MustExec("insert into t1 values(0, 0), (1, 2), (1, 3), (3, 4)")
 	tk.MustQuery("select /*+ TIDB_INLJ(t1) */ * from t join t1 on t.a=t1.a order by t.b").Check(testkit.Rows("3 1 3 4", "1 3 1 2", "1 3 1 3"))
 	tk.MustQuery("select /*+ TIDB_INLJ(t) */ t.a, t.b from t join t1 on t.a=t1.a where t1.b = 4 limit 1").Check(testkit.Rows("3 1"))
-	tk.MustQuery("select /*+ TIDB_INLJ(t, t1) */ * from t right join t1 on t.a=t1.a order by t.b").Check(testkit.Rows("<nil> <nil> 0 0", "3 1 3 4", "1 3 1 2", "1 3 1 3"))
+	tk.MustQuery("select /*+ TIDB_INLJ(t, t1) */ * from t right join t1 on t.a=t1.a order by t.b").Check(testkit.Rows("<nil> <nil> 0 0", "3 1 3 4", "1 3 1 3", "1 3 1 2"))
 
 	// join reorder will disorganize the resulting schema
 	tk.MustExec("drop table if exists t, t1")

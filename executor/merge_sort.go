@@ -29,6 +29,7 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/memory"
+	log "github.com/sirupsen/logrus"
 )
 
 // MergeSortExec represents sorting executor.
@@ -91,7 +92,7 @@ func (e *MergeSortExec) Close() error {
 }
 
 // Open implements the Executor Open interface.
-func (e *MergeSortExec) Open(ctx context.Context) error{
+func (e *MergeSortExec) Open(ctx context.Context) error {
 	e.fetched = false
 	e.concurrency = e.ctx.GetSessionVars().MergeSortConcurrency
 	//e.concurrency = 1
@@ -291,10 +292,10 @@ type TopNExec struct {
 	limit      *plannercore.PhysicalLimit
 	totalLimit uint64
 
-	chkHeap *topNChunkHeap
-	idx     int
-	offsetIdx int
-	rowPtrs []chunk.RowPtr
+	chkHeap      *topNChunkHeap
+	idx          int
+	offsetIdx    int
+	rowPtrs      []chunk.RowPtr
 	workerChunks []*chunk.List
 }
 
@@ -314,12 +315,12 @@ type topNWorker struct {
 	rowChunkCh <-chan *chunk.Chunk
 }
 
-func (e *TopNExec)newTopNWorker(workerID int, chkList *chunk.List, chunkCh chan *chunk.Chunk, total uint64) *topNWorker {
+func (e *TopNExec) newTopNWorker(workerID int, chkList *chunk.List, chunkCh chan *chunk.Chunk, total uint64) *topNWorker {
 	t := &topNWorker{
-		MergeSortExec:e.MergeSortExec,
-		rowChunks:  chkList,
-		rowChunkCh: chunkCh,
-		totalLimit: total,
+		MergeSortExec: e.MergeSortExec,
+		rowChunks:     chkList,
+		rowChunkCh:    chunkCh,
+		totalLimit:    total,
 	}
 
 	e.workerChunks[workerID] = t.rowChunks
@@ -447,25 +448,35 @@ func (e *TopNExec) Next(ctx context.Context, req *chunk.RecordBatch) error {
 		e.idx = 0
 		chkCh := make(chan *chunk.Chunk, e.concurrency)
 		wg := &sync.WaitGroup{}
-		wg.Add(int(e.concurrency))
-
+		//wg.Add(int(e.concurrency))
+		//reachEnd := false
 		for i := 0; i < e.concurrency; i++ {
 			chkList, err := e.loadChunksUntilTotalLimit(ctx)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			//log.Infof("total limit %d load chunks len %d", e.totalLimit, chkList.Len())
+			log.Infof("total limit %d load chunks len %d", e.totalLimit, chkList.Len())
+			if chkList.Len() == 0 {
+				//reachEnd = true
+				break
+			}
 			tw := e.newTopNWorker(i, chkList, chkCh, e.totalLimit)
 			e.keyColumns = tw.keyColumns
 			e.keyCmpFuncs = tw.keyCmpFuncs
+			wg.Add(1)
 			go util.WithRecovery(func() {
 				defer wg.Done()
 				tw.run(ctx)
 			}, nil)
+			if uint64(chkList.Len()) < e.totalLimit {
+				//reachEnd = true
+				break
+			}
 		}
+		//if !reachEnd {
 		for {
 			childRowChk := e.children[0].newFirstChunk()
-
+			log.Infof("required rows %d", childRowChk.RequiredRows())
 			err := e.children[0].Next(ctx, chunk.NewRecordBatch(childRowChk))
 			if err != nil {
 				return errors.Trace(err)
@@ -475,6 +486,7 @@ func (e *TopNExec) Next(ctx context.Context, req *chunk.RecordBatch) error {
 			}
 			chkCh <- childRowChk
 		}
+		//}
 		close(chkCh)
 		wg.Wait()
 		e.fetched = true
@@ -507,13 +519,14 @@ func (e *TopNExec) Next(ctx context.Context, req *chunk.RecordBatch) error {
 		}
 		e.workerRowIdx[j]++
 		e.idx++
-		//log.Infof("workerID %d idx %d offsetIdx %d limitOffset %d RowPtr %v",j, e.idx, e.offsetIdx, e.limit.Offset, minRowPtr)
-		if e.limit.Offset == 0 || uint64(e.offsetIdx)  == e.limit.Offset  {
+		//log.Infof("workerID %d idx %d offsetIdx %d limitOffset %d RowPtr %v", j, e.idx, e.offsetIdx, e.limit.Offset, minRowPtr)
+		if e.limit.Offset == 0 || uint64(e.offsetIdx) == e.limit.Offset {
 			req.AppendRow(e.workerChunks[j].GetRow(minRowPtr))
 		} else {
 			e.offsetIdx++
 		}
 	}
+	log.Infof("req row num %d", req.NumRows())
 	return nil
 }
 
