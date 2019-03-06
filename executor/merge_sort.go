@@ -14,7 +14,9 @@
 package executor
 
 import (
+	"container/heap"
 	"context"
+	"github.com/cznic/mathutil"
 	"sort"
 	"sync"
 	"time"
@@ -48,7 +50,7 @@ type MergeSortExec struct {
 	// rowPointer store the chunk index and row index for each row.
 	workerRowPtrs []*[]chunk.RowPtr
 
-	workerRowLen []int
+	workerRowLen []uint64
 	workerRowIdx []int
 
 	memTracker  *memory.Tracker
@@ -60,19 +62,19 @@ type sortWorker struct {
 	MergeSortExec
 	chkIdx  int
 	rowIdx  int
-	len     int
+	len     uint64
 	rowPtrs []chunk.RowPtr
 }
 
 func (sw *sortWorker) run() {
 	//sw.memTracker.Consume(int64(8 * sw.rowChunks.Len()))
-	for chkIdx := sw.chkIdx; chkIdx < sw.rowChunks.NumChunks() && len(sw.rowPtrs) < sw.len; chkIdx++ {
+	for chkIdx := sw.chkIdx; chkIdx < sw.rowChunks.NumChunks() && uint64(len(sw.rowPtrs)) < sw.len; chkIdx++ {
 		rowChk := sw.rowChunks.GetChunk(chkIdx)
 		rowIdx := 0
 		if chkIdx == sw.chkIdx {
 			rowIdx = sw.rowIdx
 		}
-		for ; rowIdx < rowChk.NumRows() && len(sw.rowPtrs) < sw.len; rowIdx++ {
+		for ; rowIdx < rowChk.NumRows() && uint64(len(sw.rowPtrs)) < sw.len; rowIdx++ {
 			sw.rowPtrs = append(sw.rowPtrs, chunk.RowPtr{ChkIdx: uint32(chkIdx), RowIdx: uint32(rowIdx)})
 		}
 	}
@@ -89,12 +91,12 @@ func (e *MergeSortExec) Close() error {
 }
 
 // Open implements the Executor Open interface.
-func (e *MergeSortExec) Open(ctx context.Context) error {
+func (e *MergeSortExec) Open(ctx context.Context) error{
 	e.fetched = false
 	e.concurrency = e.ctx.GetSessionVars().MergeSortConcurrency
-
+	//e.concurrency = 1
 	e.workerRowIdx = make([]int, e.concurrency)
-	e.workerRowLen = make([]int, e.concurrency)
+	e.workerRowLen = make([]uint64, e.concurrency)
 	e.workerRowPtrs = make([]*[]chunk.RowPtr, e.concurrency)
 	// To avoid duplicated initialization for TopNExec.
 	if e.memTracker == nil {
@@ -104,7 +106,7 @@ func (e *MergeSortExec) Open(ctx context.Context) error {
 	return errors.Trace(e.children[0].Open(ctx))
 }
 
-func (e *MergeSortExec) newsortWorker(workerID, chk, row, len int) *sortWorker {
+func (e *MergeSortExec) newsortWorker(workerID, chk, row int, len uint64) *sortWorker {
 	sw := &sortWorker{
 		MergeSortExec: *e,
 		chkIdx:        chk,
@@ -175,7 +177,7 @@ func (e *MergeSortExec) Next(ctx context.Context, req *chunk.RecordBatch) error 
 			if i == e.concurrency-1 {
 				workerRowsCount += e.rowChunks.Len() % e.concurrency
 			}
-			sw := e.newsortWorker(i, workerIdx[i][0], workerIdx[i][1], workerRowsCount)
+			sw := e.newsortWorker(i, workerIdx[i][0], workerIdx[i][1], uint64(workerRowsCount))
 			go util.WithRecovery(func() {
 				defer wg.Done()
 				sw.run()
@@ -188,7 +190,7 @@ func (e *MergeSortExec) Next(ctx context.Context, req *chunk.RecordBatch) error 
 
 	for !req.IsFull() {
 		j := 0
-		for j < e.concurrency && e.workerRowIdx[j] >= e.workerRowLen[j] {
+		for j < e.concurrency && uint64(e.workerRowIdx[j]) >= e.workerRowLen[j] {
 			j++
 		}
 		if j >= e.concurrency {
@@ -196,7 +198,7 @@ func (e *MergeSortExec) Next(ctx context.Context, req *chunk.RecordBatch) error 
 		}
 		minRowPtr := (*e.workerRowPtrs[j])[e.workerRowIdx[j]]
 		for i := j + 1; i < e.concurrency; i++ {
-			if e.workerRowIdx[i] < e.workerRowLen[i] {
+			if uint64(e.workerRowIdx[i]) < e.workerRowLen[i] {
 				flag := false
 				keyRowI := e.rowChunks.GetRow(minRowPtr)
 				keyRowJ := e.rowChunks.GetRow((*e.workerRowPtrs[i])[e.workerRowIdx[i]])
@@ -281,3 +283,307 @@ func (sw *sortWorker) keyColumnsLess(i, j int) bool {
 	rowJ := sw.rowChunks.GetRow(sw.rowPtrs[j])
 	return sw.lessRow(rowI, rowJ)
 }
+
+// TopNExec implements a Top-N algorithm and it is built from a SELECT statement with ORDER BY and LIMIT.
+// Instead of sorting all the rows fetched from the table, it keeps the Top-N elements only in a heap to reduce memory usage.
+type TopNExec struct {
+	MergeSortExec
+	limit      *plannercore.PhysicalLimit
+	totalLimit uint64
+
+	chkHeap *topNChunkHeap
+	idx     int
+	offsetIdx int
+	rowPtrs []chunk.RowPtr
+	workerChunks []*chunk.List
+}
+
+// topNChunkHeap implements heap.Interface.
+type topNChunkHeap struct {
+	*topNWorker
+}
+
+type topNWorker struct {
+	MergeSortExec
+	totalLimit uint64
+
+	chkHeap *topNChunkHeap
+	rowPtrs []chunk.RowPtr
+
+	rowChunks  *chunk.List
+	rowChunkCh <-chan *chunk.Chunk
+}
+
+func (e *TopNExec)newTopNWorker(workerID int, chkList *chunk.List, chunkCh chan *chunk.Chunk, total uint64) *topNWorker {
+	t := &topNWorker{
+		MergeSortExec:e.MergeSortExec,
+		rowChunks:  chkList,
+		rowChunkCh: chunkCh,
+		totalLimit: total,
+	}
+
+	e.workerChunks[workerID] = t.rowChunks
+	e.workerRowIdx[workerID] = 0
+	e.workerRowPtrs[workerID] = &t.rowPtrs
+	e.workerRowLen[workerID] = uint64(mathutil.MinUint64(uint64(e.totalLimit), uint64(chkList.Len())))
+	t.initPointers()
+	t.initCompareFuncs()
+	t.buildKeyColumns()
+	//log.Infof("worker %d rowPtrsLen %d len %d %v", workerID, len(*e.workerRowPtrs[workerID]), e.workerRowLen[workerID], e.workerRowPtrs[workerID])
+
+	return t
+}
+
+// keyColumnsLess is the less function for key columns.
+func (t *topNWorker) keyColumnsLess(i, j int) bool {
+	rowI := t.rowChunks.GetRow(t.rowPtrs[i])
+	rowJ := t.rowChunks.GetRow(t.rowPtrs[j])
+	return t.lessRow(rowI, rowJ)
+}
+
+func (t *topNWorker) run(ctx context.Context) {
+	var (
+		chunk *chunk.Chunk
+		ok    bool
+	)
+	if t.rowChunks.Len() == 0 {
+		return
+	}
+	t.chkHeap = &topNChunkHeap{t}
+	heap.Init(t.chkHeap)
+	for uint64(len(t.rowPtrs)) > t.totalLimit {
+		// The number of rows we loaded may exceeds total limit, remove greatest rows by Pop.
+		heap.Pop(t.chkHeap)
+	}
+	for {
+		select {
+		case chunk, ok = <-t.rowChunkCh:
+			if !ok {
+				//log.Infof("rowPtrs length %d", len(t.rowPtrs))
+				sort.Slice(t.rowPtrs, t.keyColumnsLess)
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+		if chunk.NumRows() == 0 {
+			break
+		}
+		err := t.processChildChk(chunk)
+		if err != nil {
+			return
+		}
+	}
+}
+
+// Less implement heap.Interface, but since we mantains a max heap,
+// this function returns true if row i is greater than row j.
+func (h *topNChunkHeap) Less(i, j int) bool {
+	rowI := h.rowChunks.GetRow(h.rowPtrs[i])
+	rowJ := h.rowChunks.GetRow(h.rowPtrs[j])
+	return h.greaterRow(rowI, rowJ)
+}
+
+func (h *topNChunkHeap) greaterRow(rowI, rowJ chunk.Row) bool {
+	for i, colIdx := range h.keyColumns {
+		cmpFunc := h.keyCmpFuncs[i]
+		cmp := cmpFunc(rowI, colIdx, rowJ, colIdx)
+		if h.ByItems[i].Desc {
+			cmp = -cmp
+		}
+		if cmp > 0 {
+			return true
+		} else if cmp < 0 {
+			return false
+		}
+	}
+	return false
+}
+
+func (h *topNChunkHeap) Len() int {
+	return len(h.rowPtrs)
+}
+
+func (h *topNChunkHeap) Push(x interface{}) {
+	// Should never be called.
+}
+
+func (h *topNChunkHeap) Pop() interface{} {
+	h.rowPtrs = h.rowPtrs[:len(h.rowPtrs)-1]
+	// We don't need the popped value, return nil to avoid memory allocation.
+	return nil
+}
+
+func (h *topNChunkHeap) Swap(i, j int) {
+	if j < 0 {
+		return
+	}
+
+	h.rowPtrs[i], h.rowPtrs[j] = h.rowPtrs[j], h.rowPtrs[i]
+}
+
+// Open implements the Executor Open interface.
+func (e *TopNExec) Open(ctx context.Context) error {
+	e.memTracker = memory.NewTracker(e.id, e.ctx.GetSessionVars().MemQuotaTopn)
+	e.memTracker.AttachTo(e.ctx.GetSessionVars().StmtCtx.MemTracker)
+	return errors.Trace(e.MergeSortExec.Open(ctx))
+}
+
+// Next implements the Executor Next interface.
+func (e *TopNExec) Next(ctx context.Context, req *chunk.RecordBatch) error {
+	if span := opentracing.SpanFromContext(ctx); span != nil && span.Tracer() != nil {
+		span1 := span.Tracer().StartSpan("topN.Next", opentracing.ChildOf(span.Context()))
+		defer span1.Finish()
+	}
+	if e.runtimeStats != nil {
+		start := time.Now()
+		defer func() { e.runtimeStats.Record(time.Since(start), req.NumRows()) }()
+	}
+	req.Reset()
+	if !e.fetched {
+		e.workerChunks = make([]*chunk.List, e.concurrency)
+		e.totalLimit = e.limit.Offset + e.limit.Count
+
+		e.idx = 0
+		chkCh := make(chan *chunk.Chunk, e.concurrency)
+		wg := &sync.WaitGroup{}
+		wg.Add(int(e.concurrency))
+
+		for i := 0; i < e.concurrency; i++ {
+			chkList, err := e.loadChunksUntilTotalLimit(ctx)
+			if err != nil {
+				return errors.Trace(err)
+			}
+			//log.Infof("total limit %d load chunks len %d", e.totalLimit, chkList.Len())
+			tw := e.newTopNWorker(i, chkList, chkCh, e.totalLimit)
+			e.keyColumns = tw.keyColumns
+			e.keyCmpFuncs = tw.keyCmpFuncs
+			go util.WithRecovery(func() {
+				defer wg.Done()
+				tw.run(ctx)
+			}, nil)
+		}
+		for {
+			childRowChk := e.children[0].newFirstChunk()
+
+			err := e.children[0].Next(ctx, chunk.NewRecordBatch(childRowChk))
+			if err != nil {
+				return errors.Trace(err)
+			}
+			if childRowChk.NumRows() == 0 {
+				break
+			}
+			chkCh <- childRowChk
+		}
+		close(chkCh)
+		wg.Wait()
+		e.fetched = true
+	}
+
+	for !req.IsFull() && uint64(e.idx) < e.totalLimit {
+
+		j := 0
+		//log.Infof("e.idx %d worker idx %d worker len %d", e.idx, e.workerRowIdx[j], len(*e.workerRowPtrs[j]))
+		for j < e.concurrency && uint64(e.workerRowIdx[j]) >= e.workerRowLen[j] {
+			j++
+		}
+		if j >= e.concurrency {
+			break
+		}
+
+		//log.Infof("workerID %d workerrowPtrslen %d workerIdx %d", j, len(*e.workerRowPtrs[j]), e.workerRowIdx[j])
+		minRowPtr := (*e.workerRowPtrs[j])[e.workerRowIdx[j]]
+		for i := j + 1; i < e.concurrency; i++ {
+			if uint64(e.workerRowIdx[i]) < e.workerRowLen[i] {
+				flag := false
+				keyRowJ := e.workerChunks[j].GetRow(minRowPtr)
+				keyRowI := e.workerChunks[i].GetRow((*e.workerRowPtrs[i])[e.workerRowIdx[i]])
+				flag = e.lessRow(keyRowJ, keyRowI)
+				if !flag {
+					minRowPtr = (*e.workerRowPtrs[i])[e.workerRowIdx[i]]
+					j = i
+				}
+			}
+		}
+		e.workerRowIdx[j]++
+		e.idx++
+		//log.Infof("workerID %d idx %d offsetIdx %d limitOffset %d RowPtr %v",j, e.idx, e.offsetIdx, e.limit.Offset, minRowPtr)
+		if e.limit.Offset == 0 || uint64(e.offsetIdx)  == e.limit.Offset  {
+			req.AppendRow(e.workerChunks[j].GetRow(minRowPtr))
+		} else {
+			e.offsetIdx++
+		}
+	}
+	return nil
+}
+
+func (e *topNWorker) initPointers() {
+	e.rowPtrs = make([]chunk.RowPtr, 0, e.rowChunks.Len())
+	e.memTracker.Consume(int64(8 * e.rowChunks.Len()))
+	for chkIdx := 0; chkIdx < e.rowChunks.NumChunks(); chkIdx++ {
+		rowChk := e.rowChunks.GetChunk(chkIdx)
+		for rowIdx := 0; rowIdx < rowChk.NumRows(); rowIdx++ {
+			e.rowPtrs = append(e.rowPtrs, chunk.RowPtr{ChkIdx: uint32(chkIdx), RowIdx: uint32(rowIdx)})
+		}
+	}
+}
+
+func (e *TopNExec) loadChunksUntilTotalLimit(ctx context.Context) (*chunk.List, error) {
+
+	rowChunks := chunk.NewList(e.retTypes(), e.initCap, e.maxChunkSize)
+	rowChunks.GetMemTracker().AttachTo(e.memTracker)
+	rowChunks.GetMemTracker().SetLabel("rowChunks")
+	for uint64(rowChunks.Len()) < e.totalLimit {
+		srcChk := e.children[0].newFirstChunk()
+		// adjust required rows by total limit
+		srcChk.SetRequiredRows(int(e.totalLimit-uint64(rowChunks.Len())), e.maxChunkSize)
+		err := e.children[0].Next(ctx, chunk.NewRecordBatch(srcChk))
+		if err != nil {
+			return rowChunks, errors.Trace(err)
+		}
+		if srcChk.NumRows() == 0 {
+			break
+		}
+		rowChunks.Add(srcChk)
+	}
+
+	return rowChunks, nil
+}
+
+const topNCompactionFactor = 4
+
+func (t *topNWorker) processChildChk(childRowChk *chunk.Chunk) error {
+	for i := 0; i < childRowChk.NumRows(); i++ {
+		heapMaxPtr := t.rowPtrs[0]
+		var heapMax, next chunk.Row
+		heapMax = t.rowChunks.GetRow(heapMaxPtr)
+		next = childRowChk.GetRow(i)
+		if t.chkHeap.greaterRow(heapMax, next) {
+			// Evict heap max, keep the next row.
+			t.rowPtrs[0] = t.rowChunks.AppendRow(childRowChk.GetRow(i))
+			heap.Fix(t.chkHeap, 0)
+		}
+	}
+	return nil
+}
+
+// doCompaction rebuild the chunks and row pointers to release memory.
+// If we don't do compaction, in a extreme case like the child data is already ascending sorted
+// but we want descending top N, then we will keep all data in memory.
+// But if data is distributed randomly, this function will be called log(n) times.
+//func (e *TopNExec) doCompaction() error {
+//	newRowChunks := chunk.NewList(e.retTypes(), e.initCap, e.maxChunkSize)
+//	newRowPtrs := make([]chunk.RowPtr, 0, e.rowChunks.Len())
+//	for _, rowPtr := range e.rowPtrs {
+//		newRowPtr := newRowChunks.AppendRow(e.rowChunks.GetRow(rowPtr))
+//		newRowPtrs = append(newRowPtrs, newRowPtr)
+//	}
+//	newRowChunks.GetMemTracker().SetLabel("rowChunks")
+//	e.memTracker.ReplaceChild(e.rowChunks.GetMemTracker(), newRowChunks.GetMemTracker())
+//	e.rowChunks = newRowChunks
+//
+//	e.memTracker.Consume(int64(-8 * len(e.rowPtrs)))
+//	e.memTracker.Consume(int64(8 * len(newRowPtrs)))
+//	e.rowPtrs = newRowPtrs
+//	return nil
+//}

@@ -1156,14 +1156,14 @@ func (b *executorBuilder) buildTopN(v *plannercore.PhysicalTopN) Executor {
 		b.err = errors.Trace(b.err)
 		return nil
 	}
-	sortExec := SortExec{
+	sortExec := MergeSortExec{
 		baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ExplainID(), childExec),
 		ByItems:      v.ByItems,
 		schema:       v.Schema(),
 	}
 	metrics.ExecutorCounter.WithLabelValues("TopNExec").Inc()
 	return &TopNExec{
-		SortExec: sortExec,
+		MergeSortExec: sortExec,
 		limit:    &plannercore.PhysicalLimit{Count: v.Count, Offset: v.Offset},
 	}
 }

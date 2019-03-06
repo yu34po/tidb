@@ -16,10 +16,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"math"
-	"math/rand"
-	"time"
-
 	"github.com/cznic/mathutil"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/parser/ast"
@@ -32,6 +28,9 @@ import (
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/memory"
 	"github.com/pingcap/tidb/util/mock"
+	"math"
+	"math/rand"
+	"time"
 )
 
 type requiredRowsDataSource struct {
@@ -266,7 +265,7 @@ func (s *testExecSuite) TestSortRequiredRows(c *C) {
 }
 
 func buildSortExec(sctx sessionctx.Context, byItems []*plannercore.ByItems, src Executor) Executor {
-	sortExec := SortExec{
+	sortExec := MergeSortExec{
 		baseExecutor: newBaseExecutor(sctx, src.Schema(), "", src),
 		ByItems:      byItems,
 		schema:       src.Schema(),
@@ -373,13 +372,13 @@ func (s *testExecSuite) TestTopNRequiredRows(c *C) {
 }
 
 func buildTopNExec(ctx sessionctx.Context, offset, count int, byItems []*plannercore.ByItems, src Executor) Executor {
-	sortExec := SortExec{
+	sortExec := MergeSortExec{
 		baseExecutor: newBaseExecutor(ctx, src.Schema(), "", src),
 		ByItems:      byItems,
 		schema:       src.Schema(),
 	}
 	return &TopNExec{
-		SortExec: sortExec,
+		MergeSortExec: sortExec,
 		limit:    &plannercore.PhysicalLimit{Count: uint64(count), Offset: uint64(offset)},
 	}
 }
