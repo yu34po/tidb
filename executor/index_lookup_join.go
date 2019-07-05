@@ -391,7 +391,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*lookUpJoinTask, error) {
 	task.memTracker.AttachTo(ow.parentMemTracker)
 
 	ow.increaseBatchSize()
-	logutil.Logger(ctx).Error("outerWorker panicked", zap.Bool("lookup", ow.lookup.isOuterJoin))
+	//logutil.Logger(ctx).Error("outerWorker panicked", zap.Bool("lookup", ow.lookup.isOuterJoin))
 
 	if ow.lookup.isOuterJoin { // if is outerJoin, push the requiredRows down
 		requiredRows := int(atomic.LoadInt64(&ow.lookup.requiredRows))
@@ -562,9 +562,12 @@ func (iw *innerWorker) constructDatumLookupKey(task *lookUpJoinTask, rowIdx int)
 		// IndexNestedLoopJoin, thus the filter will always be false if
 		// outerValue is null, and we don't need to lookup it.
 		if outerValue.IsNull() {
-			//dLookupKey = append(dLookupKey, outerValue)
-			//continue
-			return nil, nil
+			if !iw.outerCtx.keepOrder {
+				dLookupKey = append(dLookupKey, outerValue)
+				continue
+			} else {
+				return nil, nil
+			}
 		}
 		innerColType := iw.rowTypes[iw.keyCols[i]]
 		innerValue, err := outerValue.ConvertTo(sc, innerColType)
