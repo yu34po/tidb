@@ -524,17 +524,18 @@ func (iw *innerWorker) constructLookupContent(task *lookUpJoinTask) ([]*indexJoi
 		if !iw.outerCtx.keepOrder {
 			if tmpPtr = task.lookupMap.Get(keyBuf, tmpPtr[:0]); len(tmpPtr) == 0 {
 				//if !iw.hasNullInOuterJoinKey(outerRow) {
-					task.encodedLookUpKeys.AppendBytes(0, keyBuf)
-					lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
+				task.encodedLookUpKeys.AppendBytes(0, keyBuf)
+				lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
 				//} else{
-					//task.encodedLookUpKeys.AppendNull(0)
+				//task.encodedLookUpKeys.AppendNull(0)
 				//}
+
+				// TODO if key have been existed, still insert it ?
+				rowPtr := uint32(i)
+				*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
+				// new hash map with outer k v
+				task.lookupMap.Put(keyBuf, valBuf)
 			}
-			// TODO if key have been existed, still insert it ?
-			rowPtr := uint32(i)
-			*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
-			// new hash map with outer k v
-			task.lookupMap.Put(keyBuf, valBuf)
 		} else {
 			//if !iw.hasNullInOuterJoinKey(outerRow) {
 				// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
