@@ -1759,7 +1759,7 @@ func (b *executorBuilder) buildIndexLookUpJoin(v *plannercore.PhysicalIndexJoin)
 		innerKeyCols[i] = v.InnerJoinKeys[i].Index
 	}
 	e.innerCtx.keyCols = innerKeyCols
-	e.joinResult = e.newFirstChunk()
+	e.joinResult = newFirstChunk(e)
 	metrics.ExecutorCounter.WithLabelValues("IndexLookUpJoin").Inc()
 	if !v.KeepOuterOrder {
 		return &IndexLookUpHashJoin{IndexLookUpJoin: *e}

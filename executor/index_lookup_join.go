@@ -391,6 +391,8 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*lookUpJoinTask, error) {
 	task.memTracker.AttachTo(ow.parentMemTracker)
 
 	ow.increaseBatchSize()
+	logutil.Logger(ctx).Error("outerWorker panicked", zap.Bool("lookup", ow.lookup.isOuterJoin))
+
 	if ow.lookup.isOuterJoin { // if is outerJoin, push the requiredRows down
 		requiredRows := int(atomic.LoadInt64(&ow.lookup.requiredRows))
 		task.outerResult.SetRequiredRows(requiredRows, ow.maxBatchSize)
@@ -512,27 +514,33 @@ func (iw *innerWorker) constructLookupContent(task *lookUpJoinTask) ([]*indexJoi
 		if err != nil {
 			return nil, err
 		}
-		outerRow := task.outerResult.GetRow(i)
-		if !iw.hasNullInOuterJoinKey(outerRow) {
-			task.encodedLookUpKeys.AppendBytes(0, keyBuf)
-		} else {
-			task.encodedLookUpKeys.AppendNull(0)
-		}
+
+		//outerRow := task.outerResult.GetRow(i)
+		//if !iw.hasNullInOuterJoinKey(outerRow) {
+		//	task.encodedLookUpKeys.AppendBytes(0, keyBuf)
+		//} else {
+		//	task.encodedLookUpKeys.AppendNull(0)
+		//}
 		if !iw.outerCtx.keepOrder {
 			if tmpPtr = task.lookupMap.Get(keyBuf, tmpPtr[:0]); len(tmpPtr) == 0 {
-				if !iw.hasNullInOuterJoinKey(outerRow) {
+				//if !iw.hasNullInOuterJoinKey(outerRow) {
+					task.encodedLookUpKeys.AppendBytes(0, keyBuf)
 					lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
-				}
+				//} else{
+					//task.encodedLookUpKeys.AppendNull(0)
+				//}
 			}
+			// TODO if key have been existed, still insert it ?
 			rowPtr := uint32(i)
 			*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
+			// new hash map with outer k v
 			task.lookupMap.Put(keyBuf, valBuf)
 		} else {
-			if !iw.hasNullInOuterJoinKey(outerRow) {
+			//if !iw.hasNullInOuterJoinKey(outerRow) {
 				// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
+				task.encodedLookUpKeys.AppendBytes(0, keyBuf)
 				lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
-
-			}
+			//}
 		}
 	}
 
@@ -554,8 +562,9 @@ func (iw *innerWorker) constructDatumLookupKey(task *lookUpJoinTask, rowIdx int)
 		// IndexNestedLoopJoin, thus the filter will always be false if
 		// outerValue is null, and we don't need to lookup it.
 		if outerValue.IsNull() {
-			dLookupKey = append(dLookupKey, outerValue)
-			continue
+			//dLookupKey = append(dLookupKey, outerValue)
+			//continue
+			return nil, nil
 		}
 		innerColType := iw.rowTypes[iw.keyCols[i]]
 		innerValue, err := outerValue.ConvertTo(sc, innerColType)

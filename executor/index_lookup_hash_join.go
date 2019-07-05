@@ -94,7 +94,7 @@ func (e *IndexLookUpHashJoin) startWorkers(ctx context.Context) {
 	e.joinChkResourceCh = make([]chan *chunk.Chunk, concurrency)
 	for i := int(0); i < concurrency; i++ {
 		e.joinChkResourceCh[i] = make(chan *chunk.Chunk, 1)
-		e.joinChkResourceCh[i] <- e.newFirstChunk()
+		e.joinChkResourceCh[i] <- newFirstChunk(e)
 	}
 	e.workerWg.Add(concurrency)
 	for i := int(0); i < concurrency; i++ {
@@ -106,7 +106,7 @@ func (e *IndexLookUpHashJoin) startWorkers(ctx context.Context) {
 }
 
 // Next implements the IndexLookUpHashJoin Executor interface.
-func (e *IndexLookUpHashJoin) Next(ctx context.Context, req *chunk.RecordBatch) error {
+func (e *IndexLookUpHashJoin) Next(ctx context.Context, req *chunk.Chunk) error {
 	if e.runtimeStats != nil {
 		start := time.Now()
 		defer func() { e.runtimeStats.Record(time.Now().Sub(start), req.NumRows()) }()
@@ -120,7 +120,7 @@ func (e *IndexLookUpHashJoin) Next(ctx context.Context, req *chunk.RecordBatch) 
 	if result.err != nil {
 		return errors.Trace(result.err)
 	}
-	req.Chunk.SwapColumns(result.chk)
+	req.SwapColumns(result.chk)
 	result.src <- result.chk
 	return nil
 }
@@ -177,6 +177,7 @@ func (e *IndexLookUpHashJoin) newOuterWorker(resultCh, innerCh chan *lookUpJoinT
 			batchSize:        32,
 			maxBatchSize:     e.ctx.GetSessionVars().IndexJoinBatchSize,
 			parentMemTracker: e.memTracker,
+			lookup:           &e.IndexLookUpJoin,
 		},
 	}
 	return ow
@@ -249,12 +250,12 @@ func (iw *innerHashWorker) getNewJoinResult() (bool, *indexLookUpResult) {
 	return ok, joinResult
 }
 func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask, joinResult *indexLookUpResult) error {
-	dLookUpKeys, err := iw.constructDatumLookupKeys(task)
+	lookUpContents, err := iw.constructLookupContent(task)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	err = iw.fetchInnerResults(ctx, task, dLookUpKeys)
+	err = iw.fetchInnerResults(ctx, task, lookUpContents)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -269,7 +270,7 @@ func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask,
 		if len(iw.matchPtrBytes) == 0 {
 			ptr := *(*uint32)(unsafe.Pointer(&rowPtr[0]))
 			misMatchedRow := task.outerResult.GetRow(int(ptr))
-			iw.joiner.onMissMatch(misMatchedRow, joinResult.chk)
+			iw.joiner.onMissMatch(task.hasNull, misMatchedRow, joinResult.chk)
 		}
 		if joinResult.chk.NumRows() == iw.maxChunkSize {
 			ok := true
@@ -294,7 +295,6 @@ func (iw *innerHashWorker) join2Chunk(joinResult *indexLookUpResult, task *lookU
 			if !ok {
 				return false, joinResult
 			}
-
 		}
 	}
 	return true, joinResult
@@ -326,12 +326,14 @@ func (iw *innerHashWorker) joinMatchInnerRow2Chunk(innerRow chunk.Row, task *loo
 	hasMatch := false
 	for i := 0; i < len(matchedOuters); i++ {
 		innerIter.Begin()
-		matched, err := iw.joiner.tryToMatch(matchedOuters[i], innerIter, joinResult.chk)
+		matched, isNull, err := iw.joiner.tryToMatch(matchedOuters[i], innerIter, joinResult.chk)
 		if err != nil {
 			joinResult.err = errors.Trace(err)
 			return false, joinResult
 		}
 		hasMatch = hasMatch || matched
+		task.hasNull = task.hasNull || isNull
+
 		if joinResult.chk.NumRows() == iw.maxChunkSize {
 			ok := true
 			iw.joinResultCh <- joinResult
