@@ -527,10 +527,10 @@ func (iw *innerWorker) constructLookupContent(task *lookUpJoinTask) ([]*indexJoi
 					task.encodedLookUpKeys.AppendBytes(0, keyBuf)
 					lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
 				}
-				rowPtr := uint32(i)
-				*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
-				task.lookupMap.Put(keyBuf, valBuf)
 			}
+			rowPtr := uint32(i)
+			*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
+			task.lookupMap.Put(keyBuf, valBuf)
 		} else {
 			//if !iw.hasNullInOuterJoinKey(outerRow) {
 			// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
