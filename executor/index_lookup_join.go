@@ -141,9 +141,9 @@ type innerWorker struct {
 	ctx         sessionctx.Context
 	executorChk *chunk.Chunk
 
-	indexRanges   []*ranger.Range
+	indexRanges           []*ranger.Range
 	nextColCompareFilters *plannercore.ColWithCmpFuncManager
-	keyOff2IdxOff []int
+	keyOff2IdxOff         []int
 
 	joiner            joiner
 	maxChunkSize      int
@@ -515,7 +515,7 @@ func (iw *innerWorker) constructLookupContent(task *lookUpJoinTask) ([]*indexJoi
 			return nil, err
 		}
 
-		//outerRow := task.outerResult.GetRow(i)
+		outerRow := task.outerResult.GetRow(i)
 		//if !iw.hasNullInOuterJoinKey(outerRow) {
 		//	task.encodedLookUpKeys.AppendBytes(0, keyBuf)
 		//} else {
@@ -523,24 +523,19 @@ func (iw *innerWorker) constructLookupContent(task *lookUpJoinTask) ([]*indexJoi
 		//}
 		if !iw.outerCtx.keepOrder {
 			if tmpPtr = task.lookupMap.Get(keyBuf, tmpPtr[:0]); len(tmpPtr) == 0 {
-				//if !iw.hasNullInOuterJoinKey(outerRow) {
-				task.encodedLookUpKeys.AppendBytes(0, keyBuf)
-				lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
-				//} else{
-				//task.encodedLookUpKeys.AppendNull(0)
-				//}
-
-				// TODO if key have been existed, still insert it ?
+				if !iw.hasNullInOuterJoinKey(outerRow) {
+					task.encodedLookUpKeys.AppendBytes(0, keyBuf)
+					lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
+				}
 				rowPtr := uint32(i)
 				*(*uint32)(unsafe.Pointer(&valBuf[0])) = rowPtr
-				// new hash map with outer k v
 				task.lookupMap.Put(keyBuf, valBuf)
 			}
 		} else {
 			//if !iw.hasNullInOuterJoinKey(outerRow) {
-				// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
-				task.encodedLookUpKeys.AppendBytes(0, keyBuf)
-				lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
+			// Store the encoded lookup key in chunk, so we can use it to lookup the matched inners directly.
+			task.encodedLookUpKeys.AppendBytes(0, keyBuf)
+			lookUpContents = append(lookUpContents, &indexJoinLookUpContent{keys: dLookUpKey, row: task.outerResult.GetRow(i)})
 			//}
 		}
 	}

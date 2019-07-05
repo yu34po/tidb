@@ -270,7 +270,11 @@ func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask,
 		if len(iw.matchPtrBytes) == 0 {
 			ptr := *(*uint32)(unsafe.Pointer(&rowPtr[0]))
 			misMatchedRow := task.outerResult.GetRow(int(ptr))
-			iw.joiner.onMissMatch(task.hasNull, misMatchedRow, joinResult.chk)
+			isNull := false
+			if iw.hasNullInOuterJoinKey(misMatchedRow) {
+				isNull = true
+			}
+			iw.joiner.onMissMatch(isNull, misMatchedRow, joinResult.chk)
 		}
 		if joinResult.chk.NumRows() == iw.maxChunkSize {
 			ok := true
