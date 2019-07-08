@@ -271,11 +271,7 @@ func (iw *innerHashWorker) handleTask(ctx context.Context, task *lookUpJoinTask,
 			ptr := *(*uint32)(unsafe.Pointer(&rowPtr[0]))
 			misMatchedRow := task.outerResult.GetRow(int(ptr))
 			isNull := false
-			if isNull, ok = task.nullMap[string(key)]; ok {
-
-			} else if iw.hasNullInOuterJoinKey(misMatchedRow) {
-				isNull = true
-			}
+			isNull, _ = task.nullMap[string(key)]
 			iw.joiner.onMissMatch(isNull, misMatchedRow, joinResult.chk)
 		}
 		if joinResult.chk.NumRows() == iw.maxChunkSize {
