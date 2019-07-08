@@ -103,6 +103,7 @@ type lookUpJoinTask struct {
 	encodedLookUpKeys *chunk.Chunk
 	lookupMap         *mvmap.MVMap
 	matchKeyMap       *mvmap.MVMap
+	nullMap map[string]bool
 	matchedInners     []chunk.Row
 
 	doneCh   chan error
@@ -386,6 +387,7 @@ func (ow *outerWorker) buildTask(ctx context.Context) (*lookUpJoinTask, error) {
 		encodedLookUpKeys: chunk.NewChunkWithCapacity([]*types.FieldType{types.NewFieldType(mysql.TypeBlob)}, ow.ctx.GetSessionVars().MaxChunkSize),
 		lookupMap:         mvmap.NewMVMap(),
 		matchKeyMap:       mvmap.NewMVMap(),
+		nullMap: 			make(map[string]bool),
 	}
 	task.memTracker = memory.NewTracker(stringutil.MemoizeStr(func() string { return fmt.Sprintf("lookup join task %p", task) }), -1)
 	task.memTracker.AttachTo(ow.parentMemTracker)
